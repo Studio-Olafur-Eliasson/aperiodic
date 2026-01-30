@@ -108,13 +108,13 @@ namespace Aperiodic
                 gfaCopy = gfa.GetRange(0, gfa.Count);
             }
 
-            DA.SetData(0, gfaCopy);
+            DA.SetDataList(0, gfaCopy);
 
             // Call the recursive function
             GH_Structure<GH_Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, deflationA6plns, deflationB12plns, deflationF20plns, deflationK30plns);
 
             // Return result - the tree of output planes for transformation
-            DA.SetData(1, outputplns);
+            DA.SetDataTree(1, outputplns);
         }
 
         // Recursive function to perform the inflation/deflation process
