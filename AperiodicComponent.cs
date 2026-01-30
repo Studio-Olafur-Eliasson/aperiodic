@@ -29,7 +29,16 @@ namespace Aperiodic
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
             pManager.AddGeometryParameter("geometryFilter", "geoFilter", "(Optional) Input a geometry filter (Brep or Curve) to define the output shape of the tiling and reduce computation time.", GH_ParamAccess.item);
-            pManager.AddNumberParameter("filterDistance", "fDist", "Distance from the geometryFilter within which tiles should be included in the output.", GH_ParamAccess.item, 10.0);
+            pManager.AddNumberParameter("filterDistance", "fDist", "Distance from the geometryFilter within which tiles should be included in the output.", GH_ParamAccess.item, 1.0);
+            pManager.AddBooleanParameter("includeInterior", "incInt", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default false.", GH_ParamAccess.item, false);
+            pManager.AddPlaneParameter("center_pln", "center", "Plane input for the center of the recursive tile-generation process. Default: World XY.", GH_ParamAccess.item, Plane.WorldXY);
+            pManager.AddPlaneParameter("base_plns", "base", "Plane input to begin the recursive process, based on seed options.", GH_ParamAccess.tree);
+            pManager.AddIntegerParameter("iterations", "i", "Number of iterations of the recursive process. If iterations > 2, must use geometryFilter to avoid crashing. Set iterations = 0 to view the starting \"seed\" tiles of the recusive process. Default: 1", GH_ParamAccess.item, 1);
+            pManager.AddNumberParameter("scale", "s", "Scale factor (edge length) of the tiles. Default: 1.0 (no scaling)", GH_ParamAccess.item, 1.0);
+            pManager.AddPlaneParameter("deflationA6plns", "a6plns", "Deflation planes making up the A6 deflation rule.", GH_ParamAccess.tree);
+            pManager.AddPlaneParameter("deflationB12plns", "b12plns", "Deflation planes making up the B12 deflation rule.", GH_ParamAccess.tree);
+            pManager.AddPlaneParameter("deflationF20plns", "f20plns", "Deflation planes making up the F20 deflation rule.", GH_ParamAccess.tree);
+            pManager.AddPlaneParameter("deflationK30plns", "k30plns", "Deflation planes making up the K30 deflation rule.", GH_ParamAccess.tree);
         }
 
         /// <summary>
@@ -37,6 +46,8 @@ namespace Aperiodic
         /// </summary>
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
+            pManager.AddGeometryParameter("geometryFilterArray", "geoFilterArr", "Array of geometry (Brep or Curve) scaled according to the deflation scale factor and iterations.", GH_ParamAccess.list);
+            pManager.AddPlaneParameter("recursionResultplns", "resultPlns", "Tree of planes representing the positions and orientations of the generated tiles.", GH_ParamAccess.tree);
         }
 
         /// <summary>
