@@ -65,7 +65,7 @@ namespace Aperiodic
         /// You can add image files to your project resources and access them like this:
         /// return Resources.IconForThisComponent;
         /// </summary>
-        protected override System.Drawing.Bitmap Icon => null;
+        protected override System.Drawing.Bitmap Icon => Resources.aperiodic4tile24px;
 
         /// <summary>
         /// Each component must have a unique Guid to identify it. 
