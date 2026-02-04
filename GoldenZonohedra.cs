@@ -37,11 +37,6 @@ namespace Aperiodic
         /// </summary>
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            pManager.AddBrepParameter("meshO6", "O6", "Obtuse rhombohedron", GH_ParamAccess.item);
-            pManager.AddBrepParameter("meshA6", "A6", "Acute rhombohedron", GH_ParamAccess.item);
-            pManager.AddBrepParameter("meshB12", "B12", "Rhombic (Bilinksi) dodecahedron", GH_ParamAccess.item);
-            pManager.AddBrepParameter("meshF20", "F20", "Rhombic icosahedron", GH_ParamAccess.item);
-            pManager.AddBrepParameter("meshK30", "K30", "Rhombic triacontahedron", GH_ParamAccess.item);
             pManager.AddMeshParameter("meshO6", "O6", "Obtuse rhombohedron", GH_ParamAccess.list);
             pManager.AddMeshParameter("meshA6", "A6", "Acute rhombohedron", GH_ParamAccess.list);
             pManager.AddMeshParameter("meshB12", "B12", "Rhombic (Bilinksi) dodecahedron", GH_ParamAccess.list);
@@ -58,12 +53,12 @@ namespace Aperiodic
             // Get scale
             double scale = 1.0;
             if (!DA.GetData(0, ref scale)) { return; }
-           
-            Brep meshO6 = GenerateMeshO6(scale);
-            Brep meshA6 = GenerateMeshA6(scale);
-            Brep meshB12 = GenerateMeshB12(scale);
-            Brep meshF20 = GenerateMeshF20(scale);
-            Brep meshK30 = GenerateMeshK30(scale);
+
+            Mesh meshO6 = GenerateMeshO6(scale);
+            Mesh meshA6 = GenerateMeshA6(scale);
+            Mesh meshB12 = GenerateMeshB12(scale);
+            Mesh meshF20 = GenerateMeshF20(scale);
+            Mesh meshK30 = GenerateMeshK30(scale);
 
             // Declare outputs
             DA.SetData(0, meshO6);
@@ -71,52 +66,39 @@ namespace Aperiodic
             DA.SetData(2, meshB12);
             DA.SetData(3, meshF20);
             DA.SetData(4, meshK30);
-
-            //Mesh meshmeshO6 = BrepToSingleMesh(meshO6, MeshingParameters.Default);
-            //Mesh meshmeshA6 = BrepToSingleMesh(meshA6, MeshingParameters.Default);
-            //Mesh meshmeshB12 = BrepToSingleMesh(meshB12, MeshingParameters.Default);
-            //Mesh meshmeshF20 = BrepToSingleMesh(meshF20, MeshingParameters.Default);
-            //Mesh meshmeshK30 = BrepToSingleMesh(meshK30, MeshingParameters.Default);
-
-            //// Declare outputs
-            //DA.SetData(5, meshmeshO6);
-            //DA.SetData(6, meshmeshA6);
-            //DA.SetData(7, meshmeshB12);
-            //DA.SetData(8, meshmeshF20);
-            //DA.SetData(9, meshmeshK30);
         }
 
-        public static Brep GenerateMeshO6(double scale)
+        public static Mesh GenerateMeshO6(double scale)
         {
             List<Vector3d> starVectors = GenerateStarVectors(3);
             return GenerateZonohedronFromStarVectors(starVectors, scale);
         }
 
-        public static Brep GenerateMeshA6(double scale)
+        public static Mesh GenerateMeshA6(double scale)
         {
             List<Vector3d> starVectors = GenerateStarVectors(3);
             return GenerateZonohedronFromStarVectors(starVectors, scale);
         }
 
-        public static Brep GenerateMeshB12(double scale)
+        public static Mesh GenerateMeshB12(double scale)
         {
             List<Vector3d> starVectors = GenerateStarVectors(4);
             return GenerateZonohedronFromStarVectors(starVectors, scale);
         }
 
-        public static Brep GenerateMeshF20(double scale)
+        public static Mesh GenerateMeshF20(double scale)
         {
             List<Vector3d> starVectors = GenerateStarVectors(5);
             return GenerateZonohedronFromStarVectors(starVectors, scale);
         }
 
-        public static Brep GenerateMeshK30(double scale)
+        public static Mesh GenerateMeshK30(double scale)
         {
             List<Vector3d> starVectors = GenerateStarVectors(6);
             return GenerateZonohedronFromStarVectors(starVectors, scale);
         }
 
-        public static Brep GenerateZonohedronFromStarVectors(List<Vector3d> starVectors, double scale)
+        public static Mesh GenerateZonohedronFromStarVectors(List<Vector3d> starVectors, double scale)
         {
             // Scale star vectors
             List<Vector3d> scaledStarVectors = new List<Vector3d>();
@@ -144,119 +126,45 @@ namespace Aperiodic
             }
 
             // Loop through normal vectors to create p-representations, faces
-            List<Surface> faces = new List<Surface>();
+            IList<IList<int>> faces_p = new List<IList<int>>();
+
             foreach (Vector3d n in normalVectors)
             {
+                // Set up face p-representation and its opposite
                 List<int> face_p_representation = new List<int>();
+                List<int> face_p_representationOpposite = new List<int>();
+
                 // Loop through star vectors
                 foreach (Vector3d v in scaledStarVectors)
                 {
                     // Get dot product
                     double d = Vector3d.Multiply(n, v);
+                    // Create p-representation entries
                     if (Math.Abs(d) < 0.0001)
                     {
                         face_p_representation.Add(0);
+                        face_p_representationOpposite.Add(0);
                     }
                     else if (d > 0)
                     {
                         face_p_representation.Add(1);
+                        face_p_representationOpposite.Add(-1);
                     }
                     else
                     {
                         face_p_representation.Add(-1);
+                        face_p_representationOpposite.Add(1);
                     }
                 }
 
-                // Create vertex p-represetnations
-                List<int> v1_p_representation = new List<int>();
-                List<int> v2_p_representation = new List<int>();
-                List<int> v3_p_representation = new List<int>();
-                List<int> v4_p_representation = new List<int>();
-
-                bool firstZeroFound = false;
-                // Loop through face_p_representation to create vertices
-                for (int i = 0; i < face_p_representation.Count; i++)
-                {
-                    if (!firstZeroFound && face_p_representation[i] == 0)
-                    {
-                        // TODO: double check 1 and -1 assignments here
-                        firstZeroFound = true;
-                        v1_p_representation.Add(1);
-                        v2_p_representation.Add(1);
-                        v3_p_representation.Add(-1);
-                        v4_p_representation.Add(-1);
-                    }
-                    else if (firstZeroFound && face_p_representation[i] == 0)
-                    {
-                        v1_p_representation.Add(1);
-                        v2_p_representation.Add(-1);
-                        v3_p_representation.Add(-1);
-                        v4_p_representation.Add(1);
-                    }
-                    else
-                    {
-                        v1_p_representation.Add(face_p_representation[i]);
-                        v2_p_representation.Add(face_p_representation[i]);
-                        v3_p_representation.Add(face_p_representation[i]);
-                        v4_p_representation.Add(face_p_representation[i]);
-                    }
-                }
-
-                // Compute vertex positions from p-representations
-                Point3d v1 = new Point3d(0, 0, 0);
-                Point3d v2 = new Point3d(0, 0, 0);
-                Point3d v3 = new Point3d(0, 0, 0);
-                Point3d v4 = new Point3d(0, 0, 0);
-                for (int i = 0; i < scaledStarVectors.Count; i++)
-                {
-                    v1 += scaledStarVectors[i] * v1_p_representation[i];
-                    v2 += scaledStarVectors[i] * v2_p_representation[i];
-                    v3 += scaledStarVectors[i] * v3_p_representation[i];
-                    v4 += scaledStarVectors[i] * v4_p_representation[i];
-                }
-
-                // Create face from vertices (v1, v2, v3, v4)
-                Surface face = NurbsSurface.CreateFromCorners(v1, v2, v3, v4);
-                Surface faceOpposite = NurbsSurface.CreateFromCorners(-v1, -v2, -v3, -v4);
-                faces.Add((Surface)face.Duplicate());
-                faces.Add((Surface)faceOpposite.Duplicate());
+                // Add both face representations to the list
+                faces_p.Add(face_p_representation);
+                faces_p.Add(face_p_representationOpposite);
             }
 
-            // Assemble face surfaces into a Brep
-            Brep brep = Brep.JoinBreps(faces.ConvertAll(f => Brep.CreateFromSurface(f)), 0.01)[0];
-            return brep;
-
-            // TODO: Generate mesh directly instead of going through Brep
-            // return Mesh.CreateFromBrep(brep, MeshingParameters.Minimal)[0];
-        }
-
-        public static Mesh BrepToSingleMesh(Brep brep, MeshingParameters mp = null)
-        {
-            if (brep == null) return null;
-            if (!brep.IsValid) brep.Repair(0.01); // optional, see notes
-
-            mp = MeshingParameters.Default; // or .FastRenderMesh / .QualityRenderMesh
-
-            Mesh[] parts = Mesh.CreateFromBrep(brep, mp);
-            if (parts == null || parts.Length == 0) return null;
-
-            var joined = new Mesh();
-            foreach (var m in parts)
-            {
-                if (m == null) continue;
-                if (m.Vertices.Count == 0) continue;
-                joined.Append(m);
-            }
-
-            joined.Vertices.CombineIdentical(true, true);
-            joined.Vertices.CullUnused();
-            joined.Weld(Math.PI); // weld everything
-
-            bool merged = joined.MergeAllCoplanarFaces(RhinoDoc.ActiveDoc.ModelAngleToleranceRadians);
-            joined.UnifyNormals();
-            joined.Normals.ComputeNormals();
-            joined.Compact();
-            return joined;
+            // Build mesh from face representations
+            Mesh mesh = BuildMeshFromFaceRepresentations(scaledStarVectors, faces_p);
+            return mesh;
         }
 
         public static List<Vector3d> GenerateStarVectors(int numZones)
@@ -278,6 +186,104 @@ namespace Aperiodic
             // Select the required number of zones
             List<Vector3d> selectedVectors = allStarVectors.GetRange(0, numZones);
             return selectedVectors;
+        }
+
+        public static int ToMaskFromSigns(IList<int> signs)
+        {
+            int mask = 0;
+            for (int i = 0; i < signs.Count; i++)
+            {
+                if (signs[i] == +1) mask |= (1 << i); // if +1 => bit is set to 1
+                                                      // if -1 => bit stays 0
+            }
+            return mask;
+        }
+
+        public static (int m1, int m2, int m3, int m4) FaceToQuadMasks(IList<int> face)
+        {
+            // Find the two zero indices
+            int z0 = -1, z1 = -1;
+            for (int i = 0; i < face.Count; i++)
+            {
+                if (face[i] != 0) continue;
+                if (z0 < 0) z0 = i;
+                else { z1 = i; break; }
+            }
+
+            if (z0 < 0 || z1 < 0)
+                throw new ArgumentException("Face must contain exactly two zeros.");
+
+            // Start from the fixed signs, zeros will be modified in next step
+            var baseSigns = new int[face.Count];
+            for (int i = 0; i < face.Count; i++) baseSigns[i] = face[i];
+
+            // Now create the 4 combos in cyclic order
+            // (+,+), (+,-), (-,-), (-,+)
+            int[] a = (int[])baseSigns.Clone(); a[z0] = +1; a[z1] = +1;
+            int[] b = (int[])baseSigns.Clone(); b[z0] = +1; b[z1] = -1;
+            int[] c = (int[])baseSigns.Clone(); c[z0] = -1; c[z1] = -1;
+            int[] d = (int[])baseSigns.Clone(); d[z0] = -1; d[z1] = +1;
+
+            return (ToMaskFromSigns(a), ToMaskFromSigns(b), ToMaskFromSigns(c), ToMaskFromSigns(d));
+        }
+
+        // Create Point3d vertex from mask and list of generator vectors
+        static Point3d VertexFromMask(IList<Vector3d> gens, int mask)
+        {
+            Vector3d sum = Vector3d.Zero;
+            for (int i = 0; i < gens.Count; i++)
+            {
+                double s = ((mask & (1 << i)) != 0) ? 1 : -1;
+                sum += s * gens[i];
+            }
+            return new Point3d(sum);
+        }
+
+        // Build mesh from face p-representations and list of generator vectors
+        static Mesh BuildMeshFromFaceRepresentations(IList<Vector3d> gens, IList<IList<int>> facesP) // each is -1/0/+1 list
+        {
+            // Set up indexing of masks to unique vertex indices and list of mesh quad faces
+            var maskToIndex = new Dictionary<int, int>();
+            var uniqueVerts = new List<Point3d>();
+            var quads = new List<(int a, int b, int c, int d)>();
+
+            // Local function to get vertex index from mask, or to add new vertex entry
+            int GetIndex(int mask)
+            {
+                // Existing vertex
+                if (maskToIndex.TryGetValue(mask, out int idx))
+                    return idx;
+
+                // New vertex, creates new entry
+                idx = uniqueVerts.Count;
+                uniqueVerts.Add(VertexFromMask(gens, mask));
+                maskToIndex.Add(mask, idx);
+                return idx;
+            }
+
+            // Loop through faces to build quads
+            foreach (var face in facesP)
+            {
+                var (m1, m2, m3, m4) = FaceToQuadMasks(face);
+                int a = GetIndex(m1);
+                int b = GetIndex(m2);
+                int c = GetIndex(m3);
+                int d = GetIndex(m4);
+                quads.Add((a, b, c, d));
+            }
+
+            // Build mesh
+            var mesh = new Mesh();
+            mesh.Vertices.AddVertices(uniqueVerts);
+            foreach (var q in quads) mesh.Faces.AddFace(q.a, q.b, q.c, q.d);
+
+            // Cleanup
+            mesh.Weld(Math.PI);
+            mesh.UnifyNormals();
+            mesh.Normals.ComputeNormals();
+            mesh.Compact();
+
+            return mesh;
         }
 
         /// <summary>
