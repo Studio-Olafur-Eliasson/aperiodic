@@ -70,31 +70,55 @@ namespace Aperiodic
 
         public static Mesh GenerateMeshO6(double scale)
         {
-            List<Vector3d> starVectors = GenerateStarVectors(3);
-            return GenerateZonohedronFromStarVectors(starVectors, scale);
+            List<Vector3d> starVectors = GenerateStarVectors(3, true);
+            Mesh meshO6 = GenerateZonohedronFromStarVectors(starVectors, scale);
+
+            // Golden ratio
+            double phi = (1 + Math.Sqrt(5)) / 2;
+
+            // Rotate to orient according to base position in previous GH logic for transforming the tile
+            // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
+            meshO6.Rotate((Math.PI / 2) - Math.Asin(phi / Math.Sqrt(3)), Vector3d.ZAxis, Point3d.Origin);
+            meshO6.Rotate(-Math.PI / 6, Vector3d.XAxis, Point3d.Origin);
+
+            // Get additional rotation angle
+            double theta = Math.Acos(Math.Sqrt((5 - (2 * Math.Sqrt(5))) / 15));
+            meshO6.Rotate(((Math.PI / 2) - theta)/2, Vector3d.YAxis, Point3d.Origin);
+            return meshO6;
         }
 
         public static Mesh GenerateMeshA6(double scale)
         {
-            List<Vector3d> starVectors = GenerateStarVectors(3);
-            return GenerateZonohedronFromStarVectors(starVectors, scale);
+            List<Vector3d> starVectors = GenerateStarVectors(3, false);
+            Mesh meshA6 = GenerateZonohedronFromStarVectors(starVectors, scale);
+            meshA6.Rotate(Math.PI / 2, Vector3d.ZAxis, Point3d.Origin);
+
+            // Golden ratio
+            double phi = (1 + Math.Sqrt(5)) / 2;
+            // Rotate according to angle between long diagonal and face, so that long diagonal axis aligns with Z axis
+            // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
+            meshA6.Rotate(-Math.Acos(phi / Math.Sqrt(3))-(Math.PI / 2), Vector3d.YAxis, Point3d.Origin);
+            return meshA6;
         }
 
         public static Mesh GenerateMeshB12(double scale)
         {
-            List<Vector3d> starVectors = GenerateStarVectors(4);
+            List<Vector3d> starVectors = GenerateStarVectors(4, false);
             return GenerateZonohedronFromStarVectors(starVectors, scale);
         }
 
         public static Mesh GenerateMeshF20(double scale)
         {
-            List<Vector3d> starVectors = GenerateStarVectors(5);
-            return GenerateZonohedronFromStarVectors(starVectors, scale);
+            List<Vector3d> starVectors = GenerateStarVectors(5, false);
+            Mesh meshF20 = GenerateZonohedronFromStarVectors(starVectors, scale);
+            meshF20.Rotate(Math.PI, Vector3d.ZAxis, Point3d.Origin);
+            meshF20.Rotate(Math.Asin(Math.Sqrt((5+Math.Sqrt(5))/10)), Vector3d.YAxis, Point3d.Origin);
+            return meshF20;
         }
 
         public static Mesh GenerateMeshK30(double scale)
         {
-            List<Vector3d> starVectors = GenerateStarVectors(6);
+            List<Vector3d> starVectors = GenerateStarVectors(6, false);
             return GenerateZonohedronFromStarVectors(starVectors, scale);
         }
 
@@ -167,7 +191,7 @@ namespace Aperiodic
             return mesh;
         }
 
-        public static List<Vector3d> GenerateStarVectors(int numZones)
+        public static List<Vector3d> GenerateStarVectors(int numZones, bool isO6)
         {
             // Golden ratio
             double phi = (1 + Math.Sqrt(5)) / 2;
@@ -183,8 +207,17 @@ namespace Aperiodic
                 new Vector3d(-phi, 0, -1)
             };
 
-            // Select the required number of zones
-            List<Vector3d> selectedVectors = allStarVectors.GetRange(0, numZones);
+            List<Vector3d> selectedVectors;
+            // For O6, only use selection of 3 vectors
+            if (isO6)
+            {
+                selectedVectors = new List<Vector3d>() { allStarVectors[1], allStarVectors[2], allStarVectors[3] };
+            }
+            else
+            {
+                // Select the required number of zones
+                selectedVectors = allStarVectors.GetRange(0, numZones);
+            }
             return selectedVectors;
         }
 
