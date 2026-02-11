@@ -59,12 +59,13 @@ namespace Aperiodic
             GH_Path pth2 = new GH_Path(2);
             GH_Path pth3 = new GH_Path(3);
 
+            // Note: always duplicate these before modifying
             Mesh refA6 = reference.Branches[0][0].Value;
             Mesh refB12 = reference.Branches[1][0].Value;
             Mesh refF20 = reference.Branches[2][0].Value;
             Mesh refK30 = reference.Branches[3][0].Value;
 
-            Mesh mesh = refA6;
+            Mesh mesh = refA6.DuplicateMesh();
             Point3d basept = Point3d.Origin;
             Plane basepln = Plane.WorldXY;
 
@@ -126,7 +127,7 @@ namespace Aperiodic
             // Set up base orientation for A6 transformation later in step (h)
             // (Alternatively we could change the base position of the refA6 geometry but this might mean rewriting everything)
             // Get base plane for orientation transform using refA6 leftmost vertex as center and adjacent edges below it
-            Point3f leftmostVertex = new Point3f();
+            Point3d leftmostVertex = new Point3d();
             int leftmostVertexIndex = 0;
             double minX = 0;
             for (int i = 0; i < refA6.TopologyVertices.Count; i++)
@@ -139,14 +140,14 @@ namespace Aperiodic
                     minX = currentX;
                 }
             }
-            Point3f baseCenter = leftmostVertex;
+            Point3d baseCenter = leftmostVertex;
 
             // Get adjacent vertex points
             int[] adjacentVertexIndices = refA6.Vertices.GetConnectedVertices(leftmostVertexIndex);
-            List<Point3f> basea6pts = new List<Point3f>();
+            List<Point3d> basea6pts = new List<Point3d>();
             for (int i = 0; i < 3; i++)
             {
-                Point3f possibleEdgePt = refA6.TopologyVertices[adjacentVertexIndices[i]];
+                Point3d possibleEdgePt = refA6.TopologyVertices[adjacentVertexIndices[i]];
                 if (possibleEdgePt.X < -0.0001) // We only want two of the vertices, the ones not at x = 0, y = 0
                 {
                     basea6pts.Add(possibleEdgePt);
@@ -168,15 +169,15 @@ namespace Aperiodic
             Plane f20base = new Plane(Point3d.Origin, -Vector3d.XAxis, -Vector3d.YAxis);
 
             // Set up base orientation for K30 transformation in step (a6-000)
-            Point3f k30basecenter = refK30.TopologyVertices[GetClosestVertex(refK30, new Point3f(0, -1, 0))];
-            Point3f k30basexaxis = refK30.TopologyVertices[GetClosestVertex(refK30, new Point3f(1, 0, 0))];
-            Point3f k30baseyaxis = new Point3f(-k30basexaxis.X, 0, 0);
+            Point3d k30basecenter = refK30.TopologyVertices[GetClosestVertex(refK30, new Point3d(0, -1, 0))];
+            Point3d k30basexaxis = refK30.TopologyVertices[GetClosestVertex(refK30, new Point3d(1, 0, 0))];
+            Point3d k30baseyaxis = new Point3d(-k30basexaxis.X, 0, 0);
             Plane k30base = new Plane(k30basecenter, k30basexaxis, k30baseyaxis);
 
             // Set up base orientation for B12 transformation in step (a6-000)
-            Point3f b12basecenter = refB12.TopologyVertices[GetClosestVertex(refB12, new Point3f(-0.5f, 0, 0))];
-            Point3f b12baseyaxis = refB12.TopologyVertices[GetClosestVertex(refB12, new Point3f(-0.5f, -0.5f, 1))];
-            Point3f b12basexaxis = new Point3f(b12baseyaxis.X, -b12baseyaxis.Y, b12baseyaxis.Z);
+            Point3d b12basecenter = refB12.TopologyVertices[GetClosestVertex(refB12, new Point3d(-0.5f, 0, 0))];
+            Point3d b12baseyaxis = refB12.TopologyVertices[GetClosestVertex(refB12, new Point3d(-0.5f, -0.5f, 1))];
+            Point3d b12basexaxis = new Point3d(b12baseyaxis.X, -b12baseyaxis.Y, b12baseyaxis.Z);
             Plane b12base = new Plane(b12basecenter, b12basexaxis, b12baseyaxis);
 
             // This is rhombohedron (long tile)
@@ -195,7 +196,7 @@ namespace Aperiodic
             a6boundary.Transform(xformScaleA6);
 
             // Find vertex/point furthest from the base point
-            Point3f furthestVertexpt = mesh.TopologyVertices[GetFurthestVertex(mesh, (Point3f)basept)];
+            Point3d furthestVertexpt = mesh.TopologyVertices[GetFurthestVertex(mesh, (Point3d)basept)];
             Point3d scaledbasept = new Point3d(basept);
             scaledbasept.Transform(xformScaleA6);
             Point3d scaledFurthestVertexpt = new Point3d(furthestVertexpt);
@@ -235,7 +236,7 @@ namespace Aperiodic
             // TODO: refactor to take advantage of the 3-fold symmetry (only build 1/3 sides and rotate at the end or after each construction step)
 
             // For the close copy, move three K30 tiles to each of the top 3 faces
-            int closeCopyInnerIndex = GetFurthestVertex(a6a600, (Point3f)basepta6a600);
+            int closeCopyInnerIndex = GetFurthestVertex(a6a600, (Point3d)basepta6a600);
             Point3d closeCopyInnerPt = (Point3d)a6a600.Vertices[closeCopyInnerIndex];
 
             // Get orientation planes for the K30
@@ -752,7 +753,7 @@ namespace Aperiodic
 
             // Add three F20 tiles near the far vertex
             // Get normal vectors using the far copy a6a601
-            int farVertexIndex = GetFurthestVertex(a6a601, (Point3f)basept);
+            int farVertexIndex = GetFurthestVertex(a6a601, (Point3d)basept);
             Point3d farVertexPt = (Point3d)a6a601.TopologyVertices[farVertexIndex];
 
             // Get adjacent vertex points
@@ -824,7 +825,7 @@ namespace Aperiodic
             List<Vector3d> a6a6fora6f20axes = new List<Vector3d> { axisa6a609, axisa6a610, axisa6a611 };
             for (int i = 0; i < 3; i++)
             {
-                int topVertexIndex = GetClosestVertex(a6a6fora6f20[i], (Point3f)a6a6fora6f20pts[i]);
+                int topVertexIndex = GetClosestVertex(a6a6fora6f20[i], (Point3d)a6a6fora6f20pts[i]);
                 Point3d topVertexIndexPt = (Point3d)a6a6fora6f20[i].TopologyVertices[topVertexIndex];
 
                 // Get adjacent vertex points
@@ -946,10 +947,10 @@ namespace Aperiodic
             DA.SetDataTree(2, outputplns);
         }
 
-        public static int GetFurthestVertex(Mesh mesh, Point3f reference)
+        public static int GetFurthestVertex(Mesh mesh, Point3d reference)
         {
             int furthestVertexIndex = 0;
-            Point3f currentVertex = new Point3f();
+            Point3d currentVertex = new Point3d();
             double maxDistance = 0;
             for (int i = 0; i < mesh.TopologyVertices.Count; i++)
             {
@@ -964,10 +965,10 @@ namespace Aperiodic
             return furthestVertexIndex;
         }
 
-        public static int GetClosestVertex(Mesh mesh, Point3f reference)
+        public static int GetClosestVertex(Mesh mesh, Point3d reference)
         {
             int closestVertexIndex = 0;
-            Point3f currentVertex = new Point3f();
+            Point3d currentVertex = new Point3d();
             double minDistance = 1000000000;
             for (int i = 0; i < mesh.TopologyVertices.Count; i++)
             {
