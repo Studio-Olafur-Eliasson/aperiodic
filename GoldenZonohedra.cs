@@ -42,6 +42,11 @@ namespace Aperiodic
             pManager.AddMeshParameter("meshB12", "B12", "Rhombic (Bilinksi) dodecahedron", GH_ParamAccess.list);
             pManager.AddMeshParameter("meshF20", "F20", "Rhombic icosahedron", GH_ParamAccess.list);
             pManager.AddMeshParameter("meshK30", "K30", "Rhombic triacontahedron", GH_ParamAccess.list);
+            pManager.AddBrepParameter("brepO6", "O6", "Obtuse rhombohedron", GH_ParamAccess.list);
+            pManager.AddBrepParameter("brepA6", "A6", "Acute rhombohedron", GH_ParamAccess.list);
+            pManager.AddBrepParameter("brepB12", "B12", "Rhombic (Bilinksi) dodecahedron", GH_ParamAccess.list);
+            pManager.AddBrepParameter("brepF20", "F20", "Rhombic icosahedron", GH_ParamAccess.list);
+            pManager.AddBrepParameter("brepK30", "K30", "Rhombic triacontahedron", GH_ParamAccess.list);
         }
 
         /// <summary>
@@ -60,18 +65,30 @@ namespace Aperiodic
             Mesh meshF20 = GenerateMeshF20(scale);
             Mesh meshK30 = GenerateMeshK30(scale);
 
+            Brep brepO6 = GenerateBrepO6(scale);
+            Brep brepA6 = GenerateBrepA6(scale);
+            Brep brepB12 = GenerateBrepB12(scale);
+            Brep brepF20 = GenerateBrepF20(scale);
+            Brep brepK30 = GenerateBrepK30(scale);
+
             // Declare outputs
             DA.SetData(0, meshO6);
             DA.SetData(1, meshA6);
             DA.SetData(2, meshB12);
             DA.SetData(3, meshF20);
             DA.SetData(4, meshK30);
+
+            DA.SetData(5, brepO6);
+            DA.SetData(6, brepA6);
+            DA.SetData(7, brepB12);
+            DA.SetData(8, brepF20);
+            DA.SetData(9, brepK30);
         }
 
         public static Mesh GenerateMeshO6(double scale)
         {
             List<Vector3d> starVectors = GenerateStarVectors(3, true);
-            Mesh meshO6 = GenerateZonohedronFromStarVectors(starVectors, scale);
+            Mesh meshO6 = GenerateZonohedronMeshFromStarVectors(starVectors, scale);
 
             // Golden ratio
             double phi = (1 + Math.Sqrt(5)) / 2;
@@ -83,46 +100,99 @@ namespace Aperiodic
 
             // Get additional rotation angle
             double theta = Math.Acos(Math.Sqrt((5 - (2 * Math.Sqrt(5))) / 15));
-            meshO6.Rotate(((Math.PI / 2) - theta)/2, Vector3d.YAxis, Point3d.Origin);
+            meshO6.Rotate(((Math.PI / 2) - theta) / 2, Vector3d.YAxis, Point3d.Origin);
             return meshO6;
+        }
+
+        public static Brep GenerateBrepO6(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(3, true);
+            Brep brepO6 = GenerateZonohedronBrepFromStarVectors(starVectors, scale);
+
+            // Golden ratio
+            double phi = (1 + Math.Sqrt(5)) / 2;
+
+            // Rotate to orient according to base position in previous GH logic for transforming the tile
+            // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
+            brepO6.Rotate((Math.PI / 2) - Math.Asin(phi / Math.Sqrt(3)), Vector3d.ZAxis, Point3d.Origin);
+            brepO6.Rotate(-Math.PI / 6, Vector3d.XAxis, Point3d.Origin);
+
+            // Get additional rotation angle
+            double theta = Math.Acos(Math.Sqrt((5 - (2 * Math.Sqrt(5))) / 15));
+            brepO6.Rotate(((Math.PI / 2) - theta)/2, Vector3d.YAxis, Point3d.Origin);
+            return brepO6;
         }
 
         public static Mesh GenerateMeshA6(double scale)
         {
             List<Vector3d> starVectors = GenerateStarVectors(3, false);
-            Mesh meshA6 = GenerateZonohedronFromStarVectors(starVectors, scale);
+            Mesh meshA6 = GenerateZonohedronMeshFromStarVectors(starVectors, scale);
             meshA6.Rotate(Math.PI / 2, Vector3d.ZAxis, Point3d.Origin);
 
             // Golden ratio
             double phi = (1 + Math.Sqrt(5)) / 2;
             // Rotate according to angle between long diagonal and face, so that long diagonal axis aligns with Z axis
             // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
-            meshA6.Rotate(-Math.Acos(phi / Math.Sqrt(3))-(Math.PI / 2), Vector3d.YAxis, Point3d.Origin);
+            meshA6.Rotate(-Math.Acos(phi / Math.Sqrt(3)) - (Math.PI / 2), Vector3d.YAxis, Point3d.Origin);
             return meshA6;
         }
 
+        public static Brep GenerateBrepA6(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(3, false);
+            Brep brepA6 = GenerateZonohedronBrepFromStarVectors(starVectors, scale);
+            brepA6.Rotate(Math.PI / 2, Vector3d.ZAxis, Point3d.Origin);
+
+            // Golden ratio
+            double phi = (1 + Math.Sqrt(5)) / 2;
+            // Rotate according to angle between long diagonal and face, so that long diagonal axis aligns with Z axis
+            // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
+            brepA6.Rotate(-Math.Acos(phi / Math.Sqrt(3))-(Math.PI / 2), Vector3d.YAxis, Point3d.Origin);
+            return brepA6;
+        }
         public static Mesh GenerateMeshB12(double scale)
         {
             List<Vector3d> starVectors = GenerateStarVectors(4, false);
-            return GenerateZonohedronFromStarVectors(starVectors, scale);
+            return GenerateZonohedronMeshFromStarVectors(starVectors, scale);
+        }
+
+        public static Brep GenerateBrepB12(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(4, false);
+            return GenerateZonohedronBrepFromStarVectors(starVectors, scale);
         }
 
         public static Mesh GenerateMeshF20(double scale)
         {
             List<Vector3d> starVectors = GenerateStarVectors(5, false);
-            Mesh meshF20 = GenerateZonohedronFromStarVectors(starVectors, scale);
+            Mesh meshF20 = GenerateZonohedronMeshFromStarVectors(starVectors, scale);
             meshF20.Rotate(Math.PI, Vector3d.ZAxis, Point3d.Origin);
-            meshF20.Rotate(Math.Asin(Math.Sqrt((5+Math.Sqrt(5))/10)), Vector3d.YAxis, Point3d.Origin);
+            meshF20.Rotate(Math.Asin(Math.Sqrt((5 + Math.Sqrt(5)) / 10)), Vector3d.YAxis, Point3d.Origin);
             return meshF20;
+        }
+
+        public static Brep GenerateBrepF20(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(5, false);
+            Brep brepF20 = GenerateZonohedronBrepFromStarVectors(starVectors, scale);
+            brepF20.Rotate(Math.PI, Vector3d.ZAxis, Point3d.Origin);
+            brepF20.Rotate(Math.Asin(Math.Sqrt((5+Math.Sqrt(5))/10)), Vector3d.YAxis, Point3d.Origin);
+            return brepF20;
         }
 
         public static Mesh GenerateMeshK30(double scale)
         {
             List<Vector3d> starVectors = GenerateStarVectors(6, false);
-            return GenerateZonohedronFromStarVectors(starVectors, scale);
+            return GenerateZonohedronMeshFromStarVectors(starVectors, scale);
         }
 
-        public static Mesh GenerateZonohedronFromStarVectors(List<Vector3d> starVectors, double scale)
+        public static Brep GenerateBrepK30(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(6, false);
+            return GenerateZonohedronBrepFromStarVectors(starVectors, scale);
+        }
+
+        public static Brep GenerateZonohedronBrepFromStarVectors(List<Vector3d> starVectors, double scale)
         {
             // Scale star vectors
             List<Vector3d> scaledStarVectors = new List<Vector3d>();
@@ -130,6 +200,120 @@ namespace Aperiodic
             {
                 vec.Unitize();
                 scaledStarVectors.Add(Vector3d.Multiply(vec, scale*0.5));
+            }
+
+            // Generate normal vectors for faces
+            List<Vector3d> normalVectors = new List<Vector3d>();
+
+            // Using all pairwise combinations of generators
+            for (int i = 0; i < scaledStarVectors.Count; i++)
+            {
+                for (int j = i + 1; j < scaledStarVectors.Count; j++)
+                {
+                    Vector3d a = scaledStarVectors[i];
+                    Vector3d b = scaledStarVectors[j];
+
+                    // Get normal vector via cross product
+                    Vector3d n = Vector3d.CrossProduct(a, b);
+                    normalVectors.Add(n);
+                }
+            }
+
+            // Brep face generation
+            List<Surface> faces = new List<Surface>();
+
+            foreach (Vector3d n in normalVectors)
+            {
+                // Set up face p-representation and its opposite
+                List<int> face_p_representation = new List<int>();
+
+                // Loop through star vectors
+                foreach (Vector3d v in scaledStarVectors)
+                {
+                    // Get dot product
+                    double d = Vector3d.Multiply(n, v);
+                    // Create p-representation entries
+                    if (Math.Abs(d) < 0.0001)
+                    {
+                        face_p_representation.Add(0);
+                    }
+                    else if (d > 0)
+                    {
+                        face_p_representation.Add(1);
+                    }
+                    else
+                    {
+                        face_p_representation.Add(-1);
+                    }
+                }
+
+                // Create vertex p-represetnations
+                List<int> v1_p_representation = new List<int>();
+                List<int> v2_p_representation = new List<int>();
+                List<int> v3_p_representation = new List<int>();
+                List<int> v4_p_representation = new List<int>();
+
+                bool firstZeroFound = false;
+                // Loop through face_p_representation to create vertices
+                for (int i = 0; i < face_p_representation.Count; i++)
+                {
+                    if (!firstZeroFound && face_p_representation[i] == 0)
+                    {
+                        firstZeroFound = true;
+                        v1_p_representation.Add(1);
+                        v2_p_representation.Add(1);
+                        v3_p_representation.Add(-1);
+                        v4_p_representation.Add(-1);
+                    }
+                    else if (firstZeroFound && face_p_representation[i] == 0)
+                    {
+                        v1_p_representation.Add(1);
+                        v2_p_representation.Add(-1);
+                        v3_p_representation.Add(-1);
+                        v4_p_representation.Add(1);
+                    }
+                    else
+                    {
+                        v1_p_representation.Add(face_p_representation[i]);
+                        v2_p_representation.Add(face_p_representation[i]);
+                        v3_p_representation.Add(face_p_representation[i]);
+                        v4_p_representation.Add(face_p_representation[i]);
+                    }
+                }
+
+                // Compute vertex positions from p-representations
+                Point3d v1 = new Point3d(0, 0, 0);
+                Point3d v2 = new Point3d(0, 0, 0);
+                Point3d v3 = new Point3d(0, 0, 0);
+                Point3d v4 = new Point3d(0, 0, 0);
+                for (int i = 0; i < scaledStarVectors.Count; i++)
+                {
+                    v1 += scaledStarVectors[i] * v1_p_representation[i];
+                    v2 += scaledStarVectors[i] * v2_p_representation[i];
+                    v3 += scaledStarVectors[i] * v3_p_representation[i];
+                    v4 += scaledStarVectors[i] * v4_p_representation[i];
+                }
+
+                // Create face from vertices (v1, v2, v3, v4)
+                Surface face = NurbsSurface.CreateFromCorners(v1, v2, v3, v4);
+                Surface faceOpposite = NurbsSurface.CreateFromCorners(-v1, -v2, -v3, -v4);
+                faces.Add((Surface)face.Duplicate());
+                faces.Add((Surface)faceOpposite.Duplicate());
+            }
+
+            // Assemble face surfaces into a Brep
+            Brep brep = Brep.JoinBreps(faces.ConvertAll(f => Brep.CreateFromSurface(f)), 0.01)[0];
+            return brep;
+        }
+
+        public static Mesh GenerateZonohedronMeshFromStarVectors(List<Vector3d> starVectors, double scale)
+        {
+            // Scale star vectors
+            List<Vector3d> scaledStarVectors = new List<Vector3d>();
+            foreach (Vector3d vec in starVectors)
+            {
+                vec.Unitize();
+                scaledStarVectors.Add(Vector3d.Multiply(vec, scale * 0.5));
             }
 
             // Generate normal vectors for faces
