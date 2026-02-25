@@ -1,6 +1,6 @@
 using Grasshopper;
 using Grasshopper.Kernel;
-using Grasshopper.Kernel.Data; // Required for GH_Structure<T>
+using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
 using Rhino;
 using Rhino.Geometry;
@@ -11,6 +11,11 @@ namespace Aperiodic
 {
     public class AperiodicComponent : GH_Component
     {
+        // Cache commonly used constants
+        private static readonly double GoldenRatio = (1 + Math.Sqrt(5)) / 2;
+        private static readonly double DeflationScaleFactor = Math.Pow(GoldenRatio, 3);
+        private static readonly double InverseDeflationScaleFactor = 1.0 / DeflationScaleFactor;
+
         /// <summary>
         /// Each implementation of GH_Component must provide a public 
         /// constructor without any arguments.
@@ -85,8 +90,6 @@ namespace Aperiodic
             if (!DA.GetDataTree<GH_Plane>(9, out deflationF20plns)) { return; }
             if (!DA.GetDataTree<GH_Plane>(10, out deflationK30plns)) { return; }
 
-            // baseplns.SimplifyPaths(); // Ensure that basepln tree is simplified for further calculations to run (TODO: check if this still applies with GH_Structure<T>)
-
             List<GeometryBase> gfa = null;
             List<GeometryBase> gfaCopy = null;
 
@@ -95,301 +98,374 @@ namespace Aperiodic
                 if (iterations > 2)
                 {
                     AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, "Missing geometry filter input (necessary for > 2 iterations).");
-                    return; // Safeguard to prevent crashing when iterations > 2 with no geometry filter
+                    return;
                 }
-
                 gfa = null;
                 gfaCopy = null;
             }
             else
             {
-                // Populate geometry filter array based on scaling by deflation scale factor
                 gfa = GetGeoFilterArray(geometryFilter, iterations, centerpln);
                 gfaCopy = gfa.GetRange(0, gfa.Count);
             }
 
             DA.SetDataList(0, gfaCopy);
 
-            // Call the recursive function
-            GH_Structure<GH_Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, deflationA6plns, deflationB12plns, deflationF20plns, deflationK30plns);
+            // Pre-extract deflation planes to native Plane arrays for faster access
+            // deflationRules[tileType] = Plane[branchIndex][planeIndex]
+            Plane[][][] deflationRules = new Plane[4][][];
+            deflationRules[0] = ExtractPlaneArrays(deflationA6plns);
+            deflationRules[1] = ExtractPlaneArrays(deflationB12plns);
+            deflationRules[2] = ExtractPlaneArrays(deflationF20plns);
+            deflationRules[3] = ExtractPlaneArrays(deflationK30plns);
 
-            // Return result - the tree of output planes for transformation
+            GH_Structure<GH_Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, deflationRules);
+
             DA.SetDataTree(1, outputplns);
         }
 
-        // Recursive function to perform the inflation/deflation process
-        public static GH_Structure<GH_Plane> RecurseInflateGeometry(List<GeometryBase> geometryFilterArray, double filterDistance, bool includeInterior, Plane centerpln, GH_Structure<GH_Plane> baseplns, int iterations, double scale, GH_Structure<GH_Plane> deflationA6plns, GH_Structure<GH_Plane> deflationB12plns, GH_Structure<GH_Plane> deflationF20plns, GH_Structure<GH_Plane> deflationK30plns)
+        // Extract planes from GH_Structure to native arrays for faster iteration
+        // Returns Plane[branchIndex][planeIndex]
+        private static Plane[][] ExtractPlaneArrays(GH_Structure<GH_Plane> ghStructure)
         {
-            // Base case: all iterations are completed, the baseplns remain unchanged
+            int branchCount = Math.Min(ghStructure.Branches.Count, 4);
+            var result = new Plane[4][];
+            
+            for (int i = 0; i < 4; i++)
+            {
+                if (i < branchCount)
+                {
+                    var branch = ghStructure.Branches[i];
+                    result[i] = new Plane[branch.Count];
+                    for (int j = 0; j < branch.Count; j++)
+                    {
+                        result[i][j] = branch[j].Value;
+                    }
+                }
+                else
+                {
+                    result[i] = new Plane[0];
+                }
+            }
+            return result;
+        }
+
+        public static GH_Structure<GH_Plane> RecurseInflateGeometry(
+            List<GeometryBase> geometryFilterArray, 
+            double filterDistance, 
+            bool includeInterior, 
+            Plane centerpln, 
+            GH_Structure<GH_Plane> baseplns, 
+            int iterations, 
+            double scale, 
+            Plane[][][] deflationRules)
+        {
             if (iterations == 0)
             {
                 return baseplns;
             }
-            // Otherwise, recurse on the baseplns to produce 4 new lists of planes
+
+            Transform scaleInflate = Transform.Scale(centerpln.Origin, DeflationScaleFactor);
+
+            // Scale all baseplns - build lists first, then set all at once
+            var scaledPlanes = new List<GH_Plane>[4];
+            for (int i = 0; i < 4; i++)
+            {
+                var planes = baseplns.Branches[i];
+                scaledPlanes[i] = new List<GH_Plane>(planes.Count);
+                for (int j = 0; j < planes.Count; j++)
+                {
+                    Plane scaledPlane = planes[j].Value;
+                    scaledPlane.Transform(scaleInflate);
+                    scaledPlanes[i].Add(new GH_Plane(scaledPlane));
+                }
+            }
+
+            // Rebuild baseplns efficiently
+            baseplns = new GH_Structure<GH_Plane>();
+            for (int i = 0; i < 4; i++)
+            {
+                GH_Path pth = new GH_Path(i);
+                baseplns.AppendRange(scaledPlanes[i], pth);
+            }
+
+            // Perform deflation
+            GH_Structure<GH_Plane> inflatedbaseplns = InflateGeometryOptimized(baseplns, deflationRules);
+
+            // Filter
+            GH_Structure<GH_Plane> filteredbaseplns;
+            if (geometryFilterArray == null || geometryFilterArray.Count == 0)
+            {
+                filteredbaseplns = inflatedbaseplns;
+            }
             else
             {
-                double goldenRatio = (1 + Math.Sqrt(5)) / 2;
-                double deflationScaleFactor = Math.Pow(goldenRatio, 3);
-                Transform scaleInflate = Transform.Scale(centerpln.Origin, deflationScaleFactor);
-
-                // Scale all baseplns by a factor of golden ratio^3 (position for deflation)
-                for (int i = 0; i < 4; i++)
+                GeometryBase geometryFilter = geometryFilterArray[iterations - 1];
+                double buffer = scale;
+                if (geometryFilter.HasBrepForm)
                 {
-                    GH_Path pth = new GH_Path(i);
-                    if (baseplns.Branches[i].Count > 0)
-                    {
-                        var planes = baseplns.Branches[i];
-                        // List<Plane> planes = new List<Plane>(baseplns.Branches[i]);
-                        baseplns.RemovePath(pth);
-
-                        for (int j = 0; j < planes.Count; j++)
-                        {
-                            Plane scaledPlane = new Plane(planes[j].Value);
-                            scaledPlane.Transform(scaleInflate);
-                            baseplns.Append(new GH_Plane(scaledPlane), pth);
-                        }
-                    }
-                }
-
-                // Perform deflation on the inflated baseplns
-                GH_Structure<GH_Plane> inflatedbaseplns = InflateGeometry(centerpln, baseplns, deflationA6plns, deflationB12plns, deflationF20plns, deflationK30plns);
-
-                // Filter inflatedbaseplns by geometryFilterArray[iterations]
-                GH_Structure<GH_Plane> filteredbaseplns;
-                if (geometryFilterArray == null || geometryFilterArray.Count == 0)
-                {
-                    filteredbaseplns = inflatedbaseplns;
+                    Brep brepFilter = Brep.TryConvertBrep(geometryFilter);
+                    filteredbaseplns = BrepFilterPlanesOptimized(inflatedbaseplns, brepFilter, filterDistance, includeInterior, iterations, buffer);
                 }
                 else
                 {
-                    // TODO: test/ensure that mesh geometry filter also works?
-                    GeometryBase geometryFilter = geometryFilterArray[iterations - 1];
-                    double buffer = scale;
-                    if (geometryFilter.HasBrepForm)
-                    {
-                        Brep brepFilter = Brep.TryConvertBrep(geometryFilter);
-                        filteredbaseplns = BrepFilterPlanes(inflatedbaseplns, brepFilter, filterDistance, includeInterior, iterations, buffer);
-                    }
-                    else
-                    {
-                        Curve crvFilter = geometryFilter as Curve;
-                        filteredbaseplns = CrvFilterPlanes(inflatedbaseplns, crvFilter, filterDistance, iterations, buffer);
-                    }
-                    geometryFilterArray.RemoveAt(iterations - 1);
+                    Curve crvFilter = geometryFilter as Curve;
+                    filteredbaseplns = CrvFilterPlanesOptimized(inflatedbaseplns, crvFilter, filterDistance, iterations, buffer);
                 }
-
-                // Remove duplicates from the lists (within tolerance)
-                GH_Structure<GH_Plane> culledbaseplns = CullDuplicatePlanes(filteredbaseplns, 0.1 * scale);
-
-                // Decrement iterations, call recursion
-                return RecurseInflateGeometry(geometryFilterArray, filterDistance, includeInterior, centerpln, culledbaseplns, iterations - 1, scale, deflationA6plns, deflationB12plns, deflationF20plns, deflationK30plns);
+                geometryFilterArray.RemoveAt(iterations - 1);
             }
+
+            // Remove duplicates
+            GH_Structure<GH_Plane> culledbaseplns = CullDuplicatePlanesOptimized(filteredbaseplns, 0.1 * scale);
+
+            return RecurseInflateGeometry(geometryFilterArray, filterDistance, includeInterior, centerpln, culledbaseplns, iterations - 1, scale, deflationRules);
         }
 
-
-        // Deflation operation - replacement of one set of planes with another, by transforming planes from each of the deflation rules to the input baseplns
-        public static GH_Structure<GH_Plane> InflateGeometry(Plane centerpln, GH_Structure<GH_Plane> baseplns, GH_Structure<GH_Plane> deflationA6plns, GH_Structure<GH_Plane> deflationB12plns, GH_Structure<GH_Plane> deflationF20plns, GH_Structure<GH_Plane> deflationK30plns)
+        // Optimized InflateGeometry using batch operations (sequential to maintain deterministic order)
+        public static GH_Structure<GH_Plane> InflateGeometryOptimized(
+            GH_Structure<GH_Plane> baseplns, 
+            Plane[][][] deflationRules)
         {
-            GH_Structure<GH_Plane> inflatedbaseplns = new GH_Structure<GH_Plane>();
-            GH_Path pth0 = new GH_Path(0);
-            GH_Path pth1 = new GH_Path(1);
-            GH_Path pth2 = new GH_Path(2);
-            GH_Path pth3 = new GH_Path(3);
-
-            inflatedbaseplns.EnsurePath(pth0);
-            inflatedbaseplns.EnsurePath(pth1);
-            inflatedbaseplns.EnsurePath(pth2);
-            inflatedbaseplns.EnsurePath(pth3);
-
-            // Loop through each branch (each type of unit cell) provided by the baseplns data tree
+            // Use lists for deterministic ordering (matching original behavior)
+            var resultLists = new List<GH_Plane>[4];
             for (int i = 0; i < 4; i++)
             {
-                // Loop through all unit cells of a specific type (Branch(i))
-                var planes = baseplns.Branches[i];
-                if (planes.Count > 0)
+                resultLists[i] = new List<GH_Plane>();
+            }
+
+            // Process each tile type
+            for (int tileType = 0; tileType < 4; tileType++)
+            {
+                var planes = baseplns.Branches[tileType];
+                if (planes.Count == 0) continue;
+
+                Plane[][] planesToCopy = deflationRules[tileType];
+
+                // Sequential processing to maintain deterministic order
+                for (int j = 0; j < planes.Count; j++)
                 {
+                    if (!planes[j].IsValid) continue;
 
-                    // Get set of planes based on the deflation rule for this tile
-                    GH_Structure<GH_Plane> planesToCopy;
+                    Transform xcopyPlane = Transform.PlaneToPlane(Plane.WorldXY, planes[j].Value);
 
-                    // Consider which type of tile is being inflated based on i / Branch number of the baseplns
-                    switch (i)
+                    // Copy all planes from each branch
+                    for (int branchIdx = 0; branchIdx < 4; branchIdx++)
                     {
-                        case 0:
-                            planesToCopy = deflationA6plns;
-                            break;
-                        case 1:
-                            planesToCopy = deflationB12plns;
-                            break;
-                        case 2:
-                            planesToCopy = deflationF20plns;
-                            break;
-                        case 3:
-                            planesToCopy = deflationK30plns;
-                            break;
-                        default:
-                            planesToCopy = deflationA6plns;
-                            break;
-                    }
-
-                    // Loop through all tiles that need to be inflated (of a specific type)
-                    for (int j = 0; j < planes.Count; j++)
-                    {
-                        if (planes[j].IsValid)
+                        var sourcePlanes = planesToCopy[branchIdx];
+                        for (int p = 0; p < sourcePlanes.Length; p++)
                         {
-                            // Get the base transformation from WorldXY to the basepln
-                            Transform xcopyPlane = Transform.PlaneToPlane(Plane.WorldXY, planes[j].Value);
-
-                            // Copy all of the A6 tiles into inflatedbaseplns
-                            for (int a = 0; a < planesToCopy.Branches[0].Count; a++)
-                            {
-                                Plane transformedPlane = planesToCopy.Branches[0][a].Value;
-                                transformedPlane.Transform(xcopyPlane);
-                                inflatedbaseplns.Append(new GH_Plane(transformedPlane), pth0);
-                            }
-                            // Copy all of the B12 tiles into inflatedbaseplns
-                            for (int b = 0; b < planesToCopy.Branches[1].Count; b++)
-                            {
-                                Plane transformedPlane = planesToCopy.Branches[1][b].Value;
-                                transformedPlane.Transform(xcopyPlane);
-                                inflatedbaseplns.Append(new GH_Plane(transformedPlane), pth1);
-                            }
-                            // Copy all of the F20 tiles into inflatedbaseplns
-                            for (int f = 0; f < planesToCopy.Branches[2].Count; f++)
-                            {
-                                Plane transformedPlane = planesToCopy.Branches[2][f].Value;
-                                transformedPlane.Transform(xcopyPlane);
-                                inflatedbaseplns.Append(new GH_Plane(transformedPlane), pth2);
-                            }
-                            // Copy all of the K30 tiles into inflatedbaseplns
-                            for (int k = 0; k < planesToCopy.Branches[3].Count; k++)
-                            {
-                                Plane transformedPlane = planesToCopy.Branches[3][k].Value;
-                                transformedPlane.Transform(xcopyPlane);
-                                inflatedbaseplns.Append(new GH_Plane(transformedPlane), pth3);
-                            }
+                            Plane transformedPlane = sourcePlanes[p];
+                            transformedPlane.Transform(xcopyPlane);
+                            resultLists[branchIdx].Add(new GH_Plane(transformedPlane));
                         }
                     }
                 }
             }
-            return inflatedbaseplns;
+
+            // Build result structure using AppendRange (much faster than individual Append)
+            GH_Structure<GH_Plane> result = new GH_Structure<GH_Plane>();
+            for (int i = 0; i < 4; i++)
+            {
+                result.AppendRange(resultLists[i], new GH_Path(i));
+            }
+
+            return result;
         }
-        public static GH_Structure<GH_Plane> BrepFilterPlanes(GH_Structure<GH_Plane> inflatedbaseplns, Brep brepFilter, double filterDistance, bool includeInterior, int iterations, double buffer)
+
+        public static GH_Structure<GH_Plane> BrepFilterPlanesOptimized(
+            GH_Structure<GH_Plane> inflatedbaseplns, 
+            Brep brepFilter, 
+            double filterDistance, 
+            bool includeInterior, 
+            int iterations, 
+            double buffer)
         {
             if (iterations == 1) buffer = 0;
 
-            double goldenRatio = (1 + Math.Sqrt(5)) / 2;
-            double deflationScaleFactor = 1 / Math.Pow(goldenRatio, 3);
-            double filterDivisionFactor = Math.Pow(deflationScaleFactor, iterations - 1);
+            double filterDivisionFactor = Math.Pow(InverseDeflationScaleFactor, iterations - 1);
+            double maxDistance = filterDistance * filterDivisionFactor + (buffer * 1.5);
 
-            GH_Structure<GH_Plane> filteredbaseplns = new GH_Structure<GH_Plane>();
-            // Loop through each branch (each type of unit cell) provided by the baseplns data tree
+            var resultLists = new List<GH_Plane>[4];
+            
             for (int i = 0; i < 4; i++)
             {
-                GH_Path pth = new GH_Path(i);
-                filteredbaseplns.EnsurePath(pth);
                 var planes = inflatedbaseplns.Branches[i];
-                if (planes.Count > 0)
+                resultLists[i] = new List<GH_Plane>(planes.Count);
+                
+                // Sequential processing to maintain deterministic order
+                for (int j = 0; j < planes.Count; j++)
                 {
-                    for (int j = 0; j < planes.Count; j++)
+                    Point3d testPoint = planes[j].Value.Origin;
+                    
+                    if (includeInterior && brepFilter.IsPointInside(testPoint, RhinoMath.SqrtEpsilon, false))
                     {
-                        Point3d testPoint = planes[j].Value.Origin;
-                        if (includeInterior)
-                        {
-                            if (brepFilter.IsPointInside(testPoint, RhinoMath.SqrtEpsilon, false))
-                            {
-                                filteredbaseplns.Append(planes[j], pth);
-                                continue;
-                            }
-                        }
-                        Point3d closestPoint = new Point3d();
-                        ComponentIndex ci;
-                        Double s, t;
-                        Vector3d normal;
-                        brepFilter.ClosestPoint(testPoint, out closestPoint, out ci, out s, out t, filterDistance * filterDivisionFactor + (buffer * 1.5), out normal);
-                        //Check closeness but leave a tolerance for possible corners of tiles being near geometry, even if center point (plane origin) is at a distance
-                        if (testPoint.DistanceTo(closestPoint) > 0 && testPoint.DistanceTo(closestPoint) < filterDistance * filterDivisionFactor + (buffer * 1.5))
-                        {
-                            filteredbaseplns.Append(planes[j], pth);
-                        }
+                        resultLists[i].Add(planes[j]);
+                        continue;
+                    }
+                    
+                    Point3d closestPoint;
+                    ComponentIndex ci;
+                    double s, t;
+                    Vector3d normal;
+                    brepFilter.ClosestPoint(testPoint, out closestPoint, out ci, out s, out t, maxDistance, out normal);
+                    
+                    double dist = testPoint.DistanceTo(closestPoint);
+                    if (dist > 0 && dist < maxDistance)
+                    {
+                        resultLists[i].Add(planes[j]);
                     }
                 }
             }
-            return filteredbaseplns;
+
+            GH_Structure<GH_Plane> result = new GH_Structure<GH_Plane>();
+            for (int i = 0; i < 4; i++)
+            {
+                result.AppendRange(resultLists[i], new GH_Path(i));
+            }
+            return result;
         }
 
-        public static GH_Structure<GH_Plane> CrvFilterPlanes(GH_Structure<GH_Plane> inflatedbaseplns, Curve crvFilter, double filterDistance, int iterations, double buffer)
+        public static GH_Structure<GH_Plane> CrvFilterPlanesOptimized(
+            GH_Structure<GH_Plane> inflatedbaseplns, 
+            Curve crvFilter, 
+            double filterDistance, 
+            int iterations, 
+            double buffer)
         {
             if (iterations == 1) buffer = 0;
 
-            double goldenRatio = (1 + Math.Sqrt(5)) / 2;
-            double deflationScaleFactor = 1 / Math.Pow(goldenRatio, 3);
-            double filterDivisionFactor = Math.Pow(deflationScaleFactor, iterations - 1);
+            double filterDivisionFactor = Math.Pow(InverseDeflationScaleFactor, iterations - 1);
+            double maxDistance = filterDistance * filterDivisionFactor + (buffer * 1.5);
 
-            GH_Structure<GH_Plane> filteredbaseplns = new GH_Structure<GH_Plane>();
-            // Loop through each branch (each type of unit cell) provided by the baseplns data tree
+            var resultLists = new List<GH_Plane>[4];
+            
             for (int i = 0; i < 4; i++)
             {
-                GH_Path pth = new GH_Path(i);
-                filteredbaseplns.EnsurePath(pth);
                 var planes = inflatedbaseplns.Branches[i];
-                if (planes.Count > 0)
+                resultLists[i] = new List<GH_Plane>(planes.Count);
+                
+                // Sequential processing to maintain deterministic order
+                for (int j = 0; j < planes.Count; j++)
                 {
-                    for (int j = 0; j < planes.Count; j++)
+                    Point3d testPoint = planes[j].Value.Origin;
+                    double t;
+                    if (crvFilter.ClosestPoint(testPoint, out t, maxDistance))
                     {
-                        GH_Plane planeGH = planes[j];
-                        Point3d testPoint = planeGH.Value.Origin;
-                        Double t;
-                        if (crvFilter.ClosestPoint(testPoint, out t, filterDistance * filterDivisionFactor + (buffer * 1.5)))
-                        {
-                            filteredbaseplns.Append(planeGH, pth);
-                        }
+                        resultLists[i].Add(planes[j]);
                     }
                 }
             }
-            return filteredbaseplns;
-        }
 
-        public static GH_Structure<GH_Plane> CullDuplicatePlanes(GH_Structure<GH_Plane> filteredbaseplns, double tolerance)
-        {
-            GH_Structure<GH_Plane> culledbaseplns = new GH_Structure<GH_Plane>();
-            // Loop through each branch (each type of unit cell) provided by the baseplns data tree
+            GH_Structure<GH_Plane> result = new GH_Structure<GH_Plane>();
             for (int i = 0; i < 4; i++)
             {
-                GH_Path pth = new GH_Path(i);
-                culledbaseplns.EnsurePath(pth);
+                result.AppendRange(resultLists[i], new GH_Path(i));
+            }
+            return result;
+        }
+
+        // Properly optimized duplicate culling with correct spatial hashing
+        public static GH_Structure<GH_Plane> CullDuplicatePlanesOptimized(GH_Structure<GH_Plane> filteredbaseplns, double tolerance)
+        {
+            // Cell size should be at least tolerance to ensure all potential duplicates 
+            // are in adjacent cells. Using tolerance * 1.0 means checking 27 neighbor cells
+            // will cover all points within tolerance distance.
+            double cellSize = tolerance;
+            double toleranceSq = tolerance * tolerance; // Use squared distance to avoid sqrt
+            
+            var resultLists = new List<GH_Plane>[4];
+            
+            for (int i = 0; i < 4; i++)
+            {
                 var planes = filteredbaseplns.Branches[i];
-                if (planes.Count > 0)
+                
+                if (planes.Count == 0)
                 {
-                    for (int j = 0; j < planes.Count; j++)
+                    resultLists[i] = new List<GH_Plane>();
+                    continue;
+                }
+
+                // Dictionary mapping cell keys to list of points in that cell
+                var spatialGrid = new Dictionary<long, List<Point3d>>();
+                var uniquePlanes = new List<GH_Plane>(planes.Count);
+                
+                for (int j = 0; j < planes.Count; j++)
+                {
+                    Point3d testPoint = planes[j].Value.Origin;
+                    bool isDup = false;
+                    
+                    // Calculate cell coordinates
+                    int cx = (int)Math.Floor(testPoint.X / cellSize);
+                    int cy = (int)Math.Floor(testPoint.Y / cellSize);
+                    int cz = (int)Math.Floor(testPoint.Z / cellSize);
+                    
+                    // Check only neighboring cells (27 total including self)
+                    for (int dx = -1; dx <= 1 && !isDup; dx++)
                     {
-                        GH_Plane planeGH = planes[j];
-                        Point3d testPoint = planeGH.Value.Origin;
-                        bool isDup = false;
-                        if (culledbaseplns.Branches[i].Count > 0)
+                        for (int dy = -1; dy <= 1 && !isDup; dy++)
                         {
-                            for (int k = 0; k < culledbaseplns.Branches[i].Count; k++)
+                            for (int dz = -1; dz <= 1 && !isDup; dz++)
                             {
-                                Point3d testPoint2 = culledbaseplns.Branches[i][k].Value.Origin;
-                                if (testPoint.DistanceTo(testPoint2) < tolerance) isDup = true;
+                                long key = GetCellKey(cx + dx, cy + dy, cz + dz);
+                                
+                                if (spatialGrid.TryGetValue(key, out List<Point3d> cellPoints))
+                                {
+                                    for (int k = 0; k < cellPoints.Count; k++)
+                                    {
+                                        // Use squared distance comparison (faster, no sqrt)
+                                        double ddx = testPoint.X - cellPoints[k].X;
+                                        double ddy = testPoint.Y - cellPoints[k].Y;
+                                        double ddz = testPoint.Z - cellPoints[k].Z;
+                                        if (ddx*ddx + ddy*ddy + ddz*ddz < toleranceSq)
+                                        {
+                                            isDup = true;
+                                            break;
+                                        }
+                                    }
+                                }
                             }
-                            if (!isDup) culledbaseplns.Append(planeGH, pth);
                         }
-                        else culledbaseplns.Append(planeGH, pth);
+                    }
+                    
+                    if (!isDup)
+                    {
+                        long myKey = GetCellKey(cx, cy, cz);
+                        if (!spatialGrid.TryGetValue(myKey, out List<Point3d> myCell))
+                        {
+                            myCell = new List<Point3d>();
+                            spatialGrid[myKey] = myCell;
+                        }
+                        myCell.Add(testPoint);
+                        uniquePlanes.Add(planes[j]);
                     }
                 }
+                
+                resultLists[i] = uniquePlanes;
             }
-            return culledbaseplns;
+
+            GH_Structure<GH_Plane> result = new GH_Structure<GH_Plane>();
+            for (int i = 0; i < 4; i++)
+            {
+                result.AppendRange(resultLists[i], new GH_Path(i));
+            }
+            return result;
+        }
+
+        private static long GetCellKey(int x, int y, int z)
+        {
+            // Use prime number multiplication for better hash distribution
+            unchecked
+            {
+                return ((long)x * 73856093L) ^ ((long)y * 19349663L) ^ ((long)z * 83492791L);
+            }
         }
 
         public static List<GeometryBase> GetGeoFilterArray(GeometryBase geo, int iterations, Plane centerpln)
         {
-            double goldenRatio = (1 + Math.Sqrt(5)) / 2;
-            double deflationScaleFactor = 1 / Math.Pow(goldenRatio, 3);
-            Transform scaleInflate = Transform.Scale(centerpln.Origin, deflationScaleFactor);
+            Transform scaleInflate = Transform.Scale(centerpln.Origin, InverseDeflationScaleFactor);
 
             GeometryBase geoCopy = geo.Duplicate();
-            List<GeometryBase> geoFilterArray = new List<GeometryBase>();
+            List<GeometryBase> geoFilterArray = new List<GeometryBase>(iterations);
             int count = iterations;
             while (count > 0)
             {
