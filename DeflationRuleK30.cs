@@ -32,9 +32,9 @@ namespace Aperiodic
         /// </summary>
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            pManager.AddMeshParameter("outputMeshes", "outMeshes", "Output meshes after applying deflation rule B12", GH_ParamAccess.tree);
-            pManager.AddPointParameter("outputPoints", "outPts", "Output points after applying deflation rule B12", GH_ParamAccess.tree);
-            pManager.AddPlaneParameter("outputPlanes", "outPlanes", "Output planes after applying deflation rule B12", GH_ParamAccess.tree);
+            pManager.AddMeshParameter("outputMeshes", "outMeshes", "Output meshes after applying deflation rule K30", GH_ParamAccess.tree);
+            pManager.AddPointParameter("outputPoints", "outPts", "Output points after applying deflation rule K30", GH_ParamAccess.tree);
+            pManager.AddPlaneParameter("outputPlanes", "outPlanes", "Output planes after applying deflation rule K30", GH_ParamAccess.tree);
         }
 
         /// <summary>

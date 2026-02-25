@@ -32,9 +32,9 @@ namespace Aperiodic
         /// </summary>
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            pManager.AddMeshParameter("outputMeshes", "outMeshes", "Output meshes after applying deflation rule B12", GH_ParamAccess.tree);
-            pManager.AddPointParameter("outputPoints", "outPts", "Output points after applying deflation rule B12", GH_ParamAccess.tree);
-            pManager.AddPlaneParameter("outputPlanes", "outPlanes", "Output planes after applying deflation rule B12", GH_ParamAccess.tree);
+            pManager.AddMeshParameter("outputMeshes", "outMeshes", "Output meshes after applying deflation rule F20", GH_ParamAccess.tree);
+            pManager.AddPointParameter("outputPoints", "outPts", "Output points after applying deflation rule F20", GH_ParamAccess.tree);
+            pManager.AddPlaneParameter("outputPlanes", "outPlanes", "Output planes after applying deflation rule F20", GH_ParamAccess.tree);
         }
 
         /// <summary>
@@ -165,25 +165,13 @@ namespace Aperiodic
                 a6base = new Plane(baseCenter, basea6pts[1], basea6pts[0]);
             }
 
-            // Set up base orientation for F20 transformation later in step (k30-i)
-            Plane f20base = new Plane(Point3d.Origin, -Vector3d.XAxis, -Vector3d.YAxis);
-
             // Set up base orientation for K30 transformation in step (a6-000)
             Point3d k30basecenter = refK30.TopologyVertices[GetClosestVertex(refK30, new Point3d(0, -1, 0))];
             Point3d k30basexaxis = refK30.TopologyVertices[GetClosestVertex(refK30, new Point3d(1, 0, 0))];
             Point3d k30baseyaxis = new Point3d(-k30basexaxis.X, 0, 0);
             Plane k30base = new Plane(k30basecenter, k30basexaxis, k30baseyaxis);
 
-            // Set up base orientation for B12 transformation in step (a6-000)
-            Point3d b12basecenter = refB12.TopologyVertices[GetClosestVertex(refB12, new Point3d(-0.5f, 0, 0))];
-            Point3d b12baseyaxis = refB12.TopologyVertices[GetClosestVertex(refB12, new Point3d(-0.5f, -0.5f, 1))];
-            Point3d b12basexaxis = new Point3d(b12baseyaxis.X, -b12baseyaxis.Y, b12baseyaxis.Z);
-            Plane b12base = new Plane(b12basecenter, b12basexaxis, b12baseyaxis);
-
             // Begin deflation for F20
-            // Get centroid
-            AreaMassProperties ampF20 = AreaMassProperties.Compute(mesh);
-            Point3d centroidF20 = ampF20.Centroid;
 
             // Scale up F20 unit to get general boundaries of the inflated shapes
             // Scale center point of geometry by a factor of golden ratio^3
@@ -1182,7 +1170,7 @@ namespace Aperiodic
                             {
                                 int faceIndex = adjacentFacesIndices[j];
                                 Point3d f20a64facecenter = f20a64.Faces.GetFaceCenter(faceIndex);
-                                if (planef20a64.DistanceTo(f20a64facecenter) > 0.000001) // tolerance issue - causing one additional A6 to be created if only using > 0
+                                if (planef20a64.DistanceTo(f20a64facecenter) > 0.001) // tolerance issue - causing one or two additional A6 to be created if only using > 0
                                 {
                                     Vector3d f20a64facenormal = f20a64.FaceNormals[faceIndex];
                                     Plane planef20a65 = new Plane(f20a64facecenter, f20a64facenormal);
