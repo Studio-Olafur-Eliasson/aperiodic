@@ -59,11 +59,17 @@ namespace Aperiodic
             GH_Path pth2 = new GH_Path(2);
             GH_Path pth3 = new GH_Path(3);
 
-            // Note: always duplicate these before modifying
-            Mesh refA6 = reference.Branches[0][0].Value;
-            Mesh refB12 = reference.Branches[1][0].Value;
-            Mesh refF20 = reference.Branches[2][0].Value;
-            Mesh refK30 = reference.Branches[3][0].Value;
+            // Note: always duplicate these before modifying (after initial translation)
+            Mesh refA6 = reference.Branches[0][0].Value.DuplicateMesh();
+            Mesh refB12 = reference.Branches[1][0].Value.DuplicateMesh();
+            Mesh refF20 = reference.Branches[2][0].Value.DuplicateMesh();
+            Mesh refK30 = reference.Branches[3][0].Value.DuplicateMesh();
+
+            // Translate reference meshes so their base sits on WorldXY plane
+            TranslateToWorldXY(refA6);
+            TranslateToWorldXY(refB12);
+            TranslateToWorldXY(refF20);
+            TranslateToWorldXY(refK30);
 
             Mesh mesh = refA6.DuplicateMesh();
             Point3d basept = Point3d.Origin;
@@ -991,6 +997,23 @@ namespace Aperiodic
             return Math.Atan2(Vector3d.CrossProduct(v1, v2) * plane.ZAxis, v1 * v2);
         }
 
+        public static void TranslateToWorldXY(Mesh mesh)
+        {
+            // Find the minimum Z value among all topology vertices
+            double minZ = double.MaxValue;
+            for (int i = 0; i < mesh.TopologyVertices.Count; i++)
+            {
+                double z = mesh.TopologyVertices[i].Z;
+                if (z < minZ)
+                    minZ = z;
+            }
+
+            // Translate the mesh so its base sits on WorldXY (Z = 0)
+            if (Math.Abs(minZ) > 0.0001) // Only translate if not already at Z = 0
+            {
+                mesh.Translate(new Vector3d(0, 0, -minZ));
+            }
+        }
 
         /// <summary>
         /// Provides an Icon for the component.
