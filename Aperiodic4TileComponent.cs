@@ -9,7 +9,7 @@ using System.Collections.Generic;
 
 namespace Aperiodic
 {
-    public class AperiodicComponent : GH_Component
+    public class Aperiodic4TileComponent : GH_Component
     {
         // Cache commonly used constants
         private static readonly double GoldenRatio = (1 + Math.Sqrt(5)) / 2;
@@ -23,9 +23,9 @@ namespace Aperiodic
         /// Subcategory the panel. If you use non-existing tab or panel names, 
         /// new tabs/panels will automatically be created.
         /// </summary>
-        public AperiodicComponent()
-          : base("GenerateTilings", "Generate",
-            "Generate transformations according to inputs",
+        public Aperiodic4TileComponent()
+          : base("Aperiodic 4-Tile", "4-Tile",
+            "Generate aperiodic 4-tile transformations (v1.0)",
             "Aperiodic", "Aperiodic")
         {
         }
