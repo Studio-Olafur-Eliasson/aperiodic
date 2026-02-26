@@ -175,7 +175,6 @@ namespace Aperiodic
 
             // Scale up F20 unit to get general boundaries of the inflated shapes
             // Scale center point of geometry by a factor of golden ratio^3
-            //Transform xformScaleF20 = Transform.Scale(centroidF20, deflationScaleFactor);
             Transform xformScaleF20 = Transform.Scale(Point3d.Origin, deflationScaleFactor);
             Mesh f20boundary = mesh.DuplicateMesh();
             f20boundary.Transform(xformScaleF20);
@@ -195,13 +194,13 @@ namespace Aperiodic
 
             // Get one adjacent vertex from vertex
             adjacentVertexIndices = f20boundary.Vertices.GetConnectedVertices(f20basevertexIndex);
-            Point3d edgept = (Point3d)f20boundary.Vertices[adjacentVertexIndices[0]];
+            Point3d boundaryedgept = (Point3d)f20boundary.Vertices[adjacentVertexIndices[0]];
             Transform xrot5 = Transform.Rotation(2 * Math.PI / 5, normalf20, f20basevertexPt);
-            Point3d edgept2 = edgept;
+            Point3d edgept2 = boundaryedgept;
             edgept2.Transform(xrot5);
 
             // Get plane and transform
-            Plane planef20a60 = new Plane(f20basevertexPt, edgept2, edgept);
+            Plane planef20a60 = new Plane(f20basevertexPt, edgept2, boundaryedgept);
             Transform xformf20a60 = Transform.PlaneToPlane(a6base, planef20a60);
             Vector3d moveInEdge = normalf20;
             moveInEdge.Unitize();
@@ -228,36 +227,33 @@ namespace Aperiodic
             planef20a60s.Origin = baseptf20a60;
             plnsA6.Add(planef20a60s);
 
-            // Get xpt for F20 tile using the A6 tile
-            // Find adjacent vertex to edgept that is not the f20basevertexpt
-            int edgptPtIndex = GetClosestVertex(f20a60, (Point3d)edgept);
+            // Find adjacent vertex on the A6 to boundaryedgept that is not the f20basevertexpt
+            int edgptPtIndex = GetClosestVertex(f20a60, boundaryedgept);
             Point3d f20f200xpt = new Point3d();
-            // Get adjacent vertex points
-            adjacentVertexIndices = f20a60.Vertices.GetConnectedVertices(edgptPtIndex);
-            for (int j = 0; j < 3; j++)
+            // Get adjacent TOPOLOGY vertex points
+            int[] adjacentTopoIndices = f20a60.TopologyVertices.ConnectedTopologyVertices(edgptPtIndex);
+            for (int j = 0; j < adjacentTopoIndices.Length; j++)
             {
-                Point3d f20a60adjacentPt = f20a60.Vertices[adjacentVertexIndices[j]];
-                if (f20a60adjacentPt != f20basevertexPt)
+                Point3d f20a60adjacentPt = f20a60.TopologyVertices[adjacentTopoIndices[j]];
+                if (f20a60adjacentPt.DistanceTo(f20basevertexPt) > 0.0001)  // Use distance tolerance instead of !=
                 {
                     f20f200xpt = f20a60adjacentPt;
+                    break;  // Take the FIRST valid point and stop
                 }
             }
 
             // Also prepare to add F20 tile here
             Mesh f20f200 = refF20.DuplicateMesh();
-            Vector3d f20f200normal = edgept - f20basevertexPt;
+            Vector3d f20f200normal = boundaryedgept - f20basevertexPt;
             f20f200normal.Unitize();
             f20f200normal.Transform(xscaleEdgeLength);
             Point3d innerptf20f200 = f20basevertexPt + f20f200normal;
             Plane planef20f200 = new Plane(innerptf20f200, f20f200normal);
 
-            // Orient plane using xpt
-            Transform projectf20f200 = Transform.PlanarProjection(planef20f200);
-            f20f200xpt.Transform(projectf20f200);
+            // Orient plane
             Vector3d f20f200xaxis = f20f200xpt - innerptf20f200;
-            double anglef20f200 = Vector3d.VectorAngle(f20f200xaxis, planef20f200.XAxis);
-            //planef20f200.Rotate(anglef20f200 + Math.PI, f20f200normal, innerptf20f200);
-            planef20f200.Rotate(anglef20f200 + Math.PI + Math.PI / 5, f20f200normal, innerptf20f200);
+            double anglef20f200 = GetSignedVectorAngle(planef20f200.XAxis, f20f200xaxis, planef20f200);
+            planef20f200.Rotate(anglef20f200 - Math.PI, f20f200normal, innerptf20f200); // Possibly need to change the Math.PI, check
 
             // Copy and transform the F20 mesh
             Transform xformf20f200 = Transform.PlaneToPlane(Plane.WorldXY, planef20f200);
@@ -768,7 +764,7 @@ namespace Aperiodic
                     {
                         // Use the plane center and the orientation point
                         Point3d planeCenter5 = (Point3d)f20k300.TopologyVertices[i];
-                        // Get orient point using adjacent  vertex
+                        // Get orient point using adjacent vertex
                         int orientPtIndex5 = f20k300.TopologyVertices.ConnectedTopologyVertices(i)[0];
                         Point3d orientX5 = (Point3d)f20k300.TopologyVertices[orientPtIndex5];
 
@@ -832,13 +828,13 @@ namespace Aperiodic
 
                         // Get one adjacent vertex from vertex
                         adjacentVertexIndices = copyf.Vertices.GetConnectedVertices(furthestVertexIndex);
-                        edgept = (Point3d)copyf.Vertices[adjacentVertexIndices[0]];
+                        boundaryedgept = (Point3d)copyf.Vertices[adjacentVertexIndices[0]];
                         xrot5 = Transform.Rotation(2 * Math.PI / 5, normalf20a6h, baseptf);
-                        edgept2 = edgept;
+                        edgept2 = boundaryedgept;
                         edgept2.Transform(xrot5);
 
                         // Get plane and transform
-                        Plane planef20a6h = new Plane(furthestVertexPt, edgept, edgept2);
+                        Plane planef20a6h = new Plane(furthestVertexPt, boundaryedgept, edgept2);
                         Transform xformf20a6h = Transform.PlaneToPlane(a6base, planef20a6h);
 
                         // Add the first A6 tile
@@ -861,13 +857,13 @@ namespace Aperiodic
 
                         // Get xpt for next F20 tile using the A6 tile
                         // Find adjacent vertex to edgept that is not the furthestVertexPt
-                        Point3d baseptf20f20h = edgept + pushPlane5;
+                        Point3d baseptf20f20h = boundaryedgept + pushPlane5;
                         int baseptf20f20hIndex = GetClosestVertex(f20a6h, (Point3d)baseptf20f20h);
-                        Point3d f20f20hxpt = edgept;
+                        Point3d f20f20hxpt = boundaryedgept;
 
                         // Also prepare to add F20 tile here
                         Mesh f20f20h = refF20.DuplicateMesh();
-                        Vector3d f20f20hnormal = edgept - baseptf;
+                        Vector3d f20f20hnormal = boundaryedgept - baseptf;
                         Plane planef20f20h = new Plane(baseptf20f20h, f20f20hnormal);
 
                         // TODO: Fix below code using Signed Vector Angle...
@@ -891,20 +887,19 @@ namespace Aperiodic
                         //}
 
                         // Copy and transform the F20 mesh
+                        // TODO: Check that this mesh is valid, it could be the 1/5 that falls outside boundary mesh
                         Transform xformf20f20h = Transform.PlaneToPlane(Plane.WorldXY, planef20f20h);
                         f20f20h.Transform(xformf20f20h);
+                        // basef20f200.Transform(xscalef20f200); // Error?
 
-                        // Add to mesh list
-                        listF20.Add(f20f20h);
-                        Vector3d basef20f20h = f20f20hnormal;
-                        basef20f20h.Unitize();
-                        basef20f200.Transform(xscalef20f200); // Error?
-
-                        // Add to basepts list
-                        ptsF20.Add(baseptf20f20h);
-
-                        // Add to baseplns list
-                        plnsF20.Add(planef20f20h);
+                        // Check if F20 basept is inside inflated F20 shape
+                        if (Vector3d.Multiply(f20f20hnormal, normalf20) > -5.0)
+                        {
+                            // Add to lists
+                            listF20.Add(f20f20h);
+                            ptsF20.Add(baseptf20f20h);
+                            plnsF20.Add(planef20f20h);
+                        }
 
                         Mesh f20a6hcopy = f20a6h.DuplicateMesh();
                         Point3d baseptf20a6hcopy = baseptf20a6h;
@@ -958,17 +953,17 @@ namespace Aperiodic
 
                         // Get one adjacent vertex
                         adjacentVertexIndices = copyf.Vertices.GetConnectedVertices(closestVertexIndex);
-                        edgept = (Point3d)copyf.Vertices[adjacentVertexIndices[0]];
+                        boundaryedgept = (Point3d)copyf.Vertices[adjacentVertexIndices[0]];
 
                         // Start with one edge, then rotate around the plane to get the others in order
                         List<Point3d> edgePoints = new List<Point3d>();
-                        edgePoints.Add(edgept);
+                        edgePoints.Add(boundaryedgept);
                         for (int j = 1; j < 5; j++)
                         {
                             // Rotate edgept around normal 2pi/5 degrees
                             xrot5 = Transform.Rotation(-2 * Math.PI / 5, normal5, planeCenter5);
-                            edgept.Transform(xrot5);
-                            edgePoints.Add(edgept);
+                            boundaryedgept.Transform(xrot5);
+                            edgePoints.Add(boundaryedgept);
                         }
 
                         // Get planes
@@ -1170,7 +1165,7 @@ namespace Aperiodic
                             {
                                 int faceIndex = adjacentFacesIndices[j];
                                 Point3d f20a64facecenter = f20a64.Faces.GetFaceCenter(faceIndex);
-                                if (planef20a64.DistanceTo(f20a64facecenter) > 0.001) // tolerance issue - causing one or two additional A6 to be created if only using > 0
+                                if (planef20a64.DistanceTo(f20a64facecenter) > 0.00001) // tolerance issue - causing one additional A6 to be created if only using > 0
                                 {
                                     Vector3d f20a64facenormal = f20a64.FaceNormals[faceIndex];
                                     Plane planef20a65 = new Plane(f20a64facecenter, f20a64facenormal);

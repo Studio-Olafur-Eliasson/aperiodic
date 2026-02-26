@@ -890,11 +890,6 @@ namespace Aperiodic
                         basepln2.Transform(xh2);
                         basepln3.Transform(xh3);
                         basepln4.Transform(xh4);
-                        plnsA6.Add(basepln0);
-                        plnsA6.Add(basepln1);
-                        plnsA6.Add(basepln2);
-                        plnsA6.Add(basepln3);
-                        plnsA6.Add(basepln4);
 
                         // Additional transformation to flip
                         Transform xh02 = Transform.PlaneToPlane(basepln0, GetFlippedA6Plane(basepln0, a6HeightRef));
@@ -1001,11 +996,6 @@ namespace Aperiodic
                         basepln2.Transform(xh2);
                         basepln3.Transform(xh3);
                         basepln4.Transform(xh4);
-                        plnsA6.Add(basepln0);
-                        plnsA6.Add(basepln1);
-                        plnsA6.Add(basepln2);
-                        plnsA6.Add(basepln3);
-                        plnsA6.Add(basepln4);
 
                         // Additional transformation to flip
                         Transform xh02 = Transform.PlaneToPlane(basepln0, GetFlippedA6Plane(basepln0, a6HeightRef));

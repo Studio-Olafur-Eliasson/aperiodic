@@ -7,7 +7,7 @@
         Rhino 8 Windows: net48, net7.0, net7.0-windows, net7.0-windows10.0.22000.0, etc
         Rhino 8 Mac: net7.0, net7.0-macos, net7.0-macos12.0, etc
     -->
-    <TargetFrameworks>net48</TargetFrameworks>
+    <TargetFramework>net8.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <TargetExt>.gha</TargetExt>
     <NoWarn>NU1701</NoWarn>
@@ -22,8 +22,13 @@
     <Description>Description of Aperiodic</Description>
   </PropertyGroup>
   
+  <Target Name="CopyToGH" AfterTargets="Build">
+	  <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(APPDATA)\Grasshopper\Libraries\" />
+	  <Exec Command="start &quot;&quot; &quot;C:\Program Files\Rhino 8\System\Rhino.exe&quot; /runscript=&quot;_Grasshopper&quot;" />
+  </Target>
+  
   <ItemGroup>
-    <PackageReference Include="Grasshopper" Version="8.0.23304.9001" ExcludeAssets="runtime" />
+    <PackageReference Include="Grasshopper" Version="8.21.25188.17001" ExcludeAssets="runtime" />
   </ItemGroup>
   
   <ItemGroup>
