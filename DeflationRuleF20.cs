@@ -56,8 +56,14 @@ namespace Aperiodic
             GH_Path pth2 = new GH_Path(2);
             GH_Path pth3 = new GH_Path(3);
 
-		    // Note: always duplicate these before modifying (after initial translation)
-			Mesh refA6 = reference.Branches[0][0].Value.DuplicateMesh();
+            // Get height references from original input meshes
+            double a6HeightRef = GetMeshHeight(reference.Branches[0][0].Value);
+            double b12HeightRef = GetMeshHeight(reference.Branches[1][0].Value);
+            double f20HeightRef = GetMeshHeight(reference.Branches[2][0].Value);
+            double k30HeightRef = GetMeshHeight(reference.Branches[3][0].Value);
+
+            // Note: always duplicate these before modifying
+            Mesh refA6 = reference.Branches[0][0].Value.DuplicateMesh();
             Mesh refB12 = reference.Branches[1][0].Value.DuplicateMesh();
             Mesh refF20 = reference.Branches[2][0].Value.DuplicateMesh();
             Mesh refK30 = reference.Branches[3][0].Value.DuplicateMesh();
@@ -111,18 +117,6 @@ namespace Aperiodic
 
             // Get angle reference
             double rhombAcuteAngle = 2 * Math.Atan(1 / goldenRatio);
-
-            // Get length reference (height of refA6)
-            double a6HeightRef = refA6.GetBoundingBox(true).Max.Z;
-
-            // Get length reference (height of refB12)
-            double rhombLengthRef = refB12.GetBoundingBox(true).Max.Z;
-
-            // Get length reference (height of refF20)
-            double f20HeightRef = refF20.GetBoundingBox(true).Max.Z;
-
-            // Get length reference (height of refK30)
-            double k30HeightRef = refK30.GetBoundingBox(true).Max.Z;
 
             // Get length reference (edge length of original triacontahedron)
             //double edgeLengthRef = refK30.Edges[0].PointAtEnd.DistanceTo(refK30.Edges[0].PointAtStart); //brep code
@@ -387,7 +381,7 @@ namespace Aperiodic
                     // First push the plane further out
                     Vector3d pushPlane = new Vector3d(f20b12normal);
                     pushPlane.Unitize();
-                    Transform xscale = Transform.Scale(Point3d.Origin, rhombLengthRef);
+                    Transform xscale = Transform.Scale(Point3d.Origin, b12HeightRef);
                     pushPlane.Transform(xscale);
                     planef20b12.Translate(pushPlane);
                     Mesh e = refK30.DuplicateMesh();
@@ -1243,6 +1237,25 @@ namespace Aperiodic
             }
             DA.SetDataTree(1, outputpts);
 
+            // Translate planes along their normals by half the tile height
+            double a6HalfHeight = a6HeightRef / 2;
+            double b12HalfHeight = b12HeightRef / 2;
+            double f20HalfHeight = f20HeightRef / 2;
+            double k30HalfHeight = k30HeightRef / 2;
+
+            TranslatePlanesAlongNormals(plnsA6, a6HalfHeight);
+            TranslatePlanesAlongNormals(plnsB12, b12HalfHeight);
+            TranslatePlanesAlongNormals(plnsF20, f20HalfHeight);
+            TranslatePlanesAlongNormals(plnsK30, k30HalfHeight);
+
+            // Final Z-offset for all planes based on the deflated A6 half-height
+            double zTranslation = -f20HalfHeight * deflationScaleFactor;
+            Vector3d zOffset = new Vector3d(0, 0, zTranslation);
+            TranslatePlanesInDirection(plnsA6, zOffset);
+            TranslatePlanesInDirection(plnsB12, zOffset);
+            TranslatePlanesInDirection(plnsF20, zOffset);
+            TranslatePlanesInDirection(plnsK30, zOffset);
+
             // Output plns
             foreach (Plane pl in plnsA6)
             {
@@ -1427,6 +1440,33 @@ namespace Aperiodic
             if (Math.Abs(minZ) > 0.0001) // Only translate if not already at Z = 0
             {
                 mesh.Translate(new Vector3d(0, 0, -minZ));
+            }
+        }
+
+        public static double GetMeshHeight(Mesh mesh)
+        {
+            BoundingBox bbox = mesh.GetBoundingBox(true);
+            return bbox.Max.Z - bbox.Min.Z;
+        }
+
+        public static void TranslatePlanesAlongNormals(List<Plane> planes, double distance)
+        {
+            for (int i = 0; i < planes.Count; i++)
+            {
+                Plane plane = planes[i];
+                Vector3d translation = plane.Normal * distance;
+                plane.Translate(translation);
+                planes[i] = plane;
+            }
+        }
+
+        public static void TranslatePlanesInDirection(List<Plane> planes, Vector3d translation)
+        {
+            for (int i = 0; i < planes.Count; i++)
+            {
+                Plane plane = planes[i];
+                plane.Translate(translation);
+                planes[i] = plane;
             }
         }
 
