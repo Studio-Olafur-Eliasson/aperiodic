@@ -1400,22 +1400,18 @@ namespace Aperiodic
             // Output points
             foreach (var p in ptsA6)
             {
-                if (p == null) continue;
                 outputpts.Append(new GH_Point(p), pth0);
             }
             foreach (var p in ptsB12)
             {
-                if (p == null) continue;
                 outputpts.Append(new GH_Point(p), pth1);
             }
             foreach (var p in ptsF20)
             {
-                if (p == null) continue;
                 outputpts.Append(new GH_Point(p), pth2);
             }
             foreach (var p in ptsK30)
             {
-                if (p == null) continue;
                 outputpts.Append(new GH_Point(p), pth3);
             }
             DA.SetDataTree(1, outputpts);
@@ -1442,22 +1438,18 @@ namespace Aperiodic
             // Output plns
             foreach (Plane pl in plnsA6)
             {
-                if (pl == null) continue;
                 outputplns.Append(new GH_Plane(pl), pth0);
             }
             foreach (Plane pl in plnsB12)
             {
-                if (pl == null) continue;
                 outputplns.Append(new GH_Plane(pl), pth1);
             }
             foreach (Plane pl in plnsF20)
             {
-                if (pl == null) continue;
                 outputplns.Append(new GH_Plane(pl), pth2);
             }
             foreach (Plane pl in plnsK30)
             {
-                if (pl == null) continue;
                 outputplns.Append(new GH_Plane(pl), pth3);
             }
             DA.SetDataTree(2, outputplns);
