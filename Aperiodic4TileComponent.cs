@@ -1,3 +1,4 @@
+using Ed.Eto;
 using Grasshopper;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
@@ -15,6 +16,9 @@ namespace Aperiodic
         private static readonly double GoldenRatio = (1 + Math.Sqrt(5)) / 2;
         private static readonly double DeflationScaleFactor = Math.Pow(GoldenRatio, 3);
         private static readonly double InverseDeflationScaleFactor = 1.0 / DeflationScaleFactor;
+
+        // Store geometry to preview
+        private List<Curve> _previewCurves = new List<Curve>();
 
         /// <summary>
         /// Each implementation of GH_Component must provide a public 
@@ -39,9 +43,8 @@ namespace Aperiodic
             pManager.AddNumberParameter("filterDistance", "fDist", "Distance from the geometryFilter within which tiles should be included in the output.", GH_ParamAccess.item, 1.0);
             pManager.AddBooleanParameter("includeInterior", "incInt", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default false.", GH_ParamAccess.item, false);
             pManager.AddPlaneParameter("center_pln", "center", "Plane input for the center of the recursive tile-generation process. Default: World XY.", GH_ParamAccess.item, Plane.WorldXY);
-            pManager.AddPlaneParameter("base_plns", "base", "Plane input to begin the recursive process, based on seed options.", GH_ParamAccess.tree);
+            pManager.AddIntegerParameter("seedOption", "seedOption", "Enter an integer option, 0, 1, or 2. According to Socolar and Steinhardt, who published the discovery of this 4-tile configuration in 1986, there exist exactly three packings with a single center of icosahedral point symmetry in 3D Euclidean space. These three options are each generated with one of the following \"seed\" tile configurations: 0 = a single rhombic triacontahedron tile (Default); 1 = a star of twenty rhombohedra, which, after deflation/inflation, are surrounded by rhombic triacontahedra; 2 = a star of twenty rhombohedra, with flipped orientations with respect to the previous option, so that they are surrounded by rhombic icosahedra on the next layer after deflation/inflation.", GH_ParamAccess.item);
             pManager.AddIntegerParameter("iterations", "i", "Number of iterations of the recursive process. If iterations > 2, must use geometryFilter to avoid crashing. Set iterations = 0 to view the starting \"seed\" tiles of the recusive process. Default: 1", GH_ParamAccess.item, 1);
-            pManager.AddNumberParameter("scale", "scale", "Scale factor (edge length) of the tiles. Default: 1.0 (no scaling)", GH_ParamAccess.item, 1.0);
             pManager.AddPlaneParameter("deflationA6plns", "a6plns", "Deflation planes making up the A6 deflation rule.", GH_ParamAccess.tree);
             pManager.AddPlaneParameter("deflationB12plns", "b12plns", "Deflation planes making up the B12 deflation rule.", GH_ParamAccess.tree);
             pManager.AddPlaneParameter("deflationF20plns", "f20plns", "Deflation planes making up the F20 deflation rule.", GH_ParamAccess.tree);
@@ -69,7 +72,7 @@ namespace Aperiodic
             double filterDistance = 1.0;
             bool includeInterior = false;
             Plane centerpln = Plane.WorldXY;
-            GH_Structure<GH_Plane> baseplns = new GH_Structure<GH_Plane>();
+            int seed = 0;
             int iterations = 1;
             double scale = 1.0;
             GH_Structure<GH_Plane> deflationA6plns = new GH_Structure<GH_Plane>();
@@ -82,13 +85,12 @@ namespace Aperiodic
             if (!DA.GetData(1, ref filterDistance)) { return; }
             if (!DA.GetData(2, ref includeInterior)) { return; }
             if (!DA.GetData(3, ref centerpln)) { return; }
-            if (!DA.GetDataTree<GH_Plane>(4, out baseplns)) { return; }
+            if (!DA.GetData(4, ref seed)) { return; }
             if (!DA.GetData(5, ref iterations)) { return; }
-            if (!DA.GetData(6, ref scale)) { return; }
-            if (!DA.GetDataTree<GH_Plane>(7, out deflationA6plns)) { return; }
-            if (!DA.GetDataTree<GH_Plane>(8, out deflationB12plns)) { return; }
-            if (!DA.GetDataTree<GH_Plane>(9, out deflationF20plns)) { return; }
-            if (!DA.GetDataTree<GH_Plane>(10, out deflationK30plns)) { return; }
+            if (!DA.GetDataTree<GH_Plane>(6, out deflationA6plns)) { return; }
+            if (!DA.GetDataTree<GH_Plane>(7, out deflationB12plns)) { return; }
+            if (!DA.GetDataTree<GH_Plane>(8, out deflationF20plns)) { return; }
+            if (!DA.GetDataTree<GH_Plane>(9, out deflationK30plns)) { return; }
 
             List<GeometryBase> gfa = null;
             List<GeometryBase> gfaCopy = null;
@@ -117,6 +119,27 @@ namespace Aperiodic
             Mesh meshF20 = GenerateMeshF20(scale);
             Mesh meshK30 = GenerateMeshK30(scale);
 
+            // Generate the base planes according to chosen seed option and center plane
+            double a6HeightRef = GetMeshHeight(meshA6);
+            DataTree<Plane> baseplns = GenerateBasePlnsFromSeed(seed, centerpln, a6HeightRef);
+
+            // Generate wireframe preview
+            _previewCurves.Clear();
+            foreach (var pln in baseplns.Branch(0))
+            {
+                Mesh meshCopy = meshA6.DuplicateMesh();
+                meshCopy.Transform(Transform.PlaneToPlane(Plane.WorldXY, pln));
+                meshCopy.Scale(Math.Pow(DeflationScaleFactor, iterations));
+                _previewCurves.AddRange(GetWireframeEdges(meshCopy));
+            }
+            foreach (var pln in baseplns.Branch(3))
+            {
+                Mesh meshCopy = meshK30.DuplicateMesh();
+                meshCopy.Transform(Transform.PlaneToPlane(Plane.WorldXY, pln));
+                meshCopy.Scale(Math.Pow(DeflationScaleFactor, iterations));
+                _previewCurves.AddRange(GetWireframeEdges(meshCopy));
+            }
+
             // Pre-extract deflation planes to native Plane arrays for faster access
             // deflationRules[tileType] = Plane[branchIndex][planeIndex]
             Plane[][][] deflationRules = new Plane[4][][];
@@ -125,7 +148,7 @@ namespace Aperiodic
             deflationRules[2] = ExtractPlaneArrays(deflationF20plns);
             deflationRules[3] = ExtractPlaneArrays(deflationK30plns);
 
-            GH_Structure<GH_Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, deflationRules);
+            DataTree<Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, deflationRules);
 
             DA.SetDataTree(1, outputplns);
         }
@@ -156,12 +179,12 @@ namespace Aperiodic
             return result;
         }
 
-        public static GH_Structure<GH_Plane> RecurseInflateGeometry(
+        public static DataTree<Plane> RecurseInflateGeometry(
             List<GeometryBase> geometryFilterArray, 
             double filterDistance, 
             bool includeInterior, 
-            Plane centerpln, 
-            GH_Structure<GH_Plane> baseplns, 
+            Plane centerpln,
+            DataTree<Plane> baseplns, 
             int iterations, 
             double scale, 
             Plane[][][] deflationRules)
@@ -174,32 +197,32 @@ namespace Aperiodic
             Transform scaleInflate = Transform.Scale(centerpln.Origin, DeflationScaleFactor);
 
             // Scale all baseplns - build lists first, then set all at once
-            var scaledPlanes = new List<GH_Plane>[4];
+            var scaledPlanes = new List<Plane>[4];
             for (int i = 0; i < 4; i++)
             {
                 var planes = baseplns.Branches[i];
-                scaledPlanes[i] = new List<GH_Plane>(planes.Count);
+                scaledPlanes[i] = new List<Plane>(planes.Count);
                 for (int j = 0; j < planes.Count; j++)
                 {
-                    Plane scaledPlane = planes[j].Value;
+                    Plane scaledPlane = planes[j];
                     scaledPlane.Transform(scaleInflate);
-                    scaledPlanes[i].Add(new GH_Plane(scaledPlane));
+                    scaledPlanes[i].Add(new Plane(scaledPlane));
                 }
             }
 
             // Rebuild baseplns efficiently
-            baseplns = new GH_Structure<GH_Plane>();
+            baseplns = new DataTree<Plane>();
             for (int i = 0; i < 4; i++)
             {
                 GH_Path pth = new GH_Path(i);
-                baseplns.AppendRange(scaledPlanes[i], pth);
+                baseplns.AddRange(scaledPlanes[i], pth);
             }
 
             // Perform deflation
-            GH_Structure<GH_Plane> inflatedbaseplns = InflateGeometryOptimized(baseplns, deflationRules);
+            DataTree<Plane> inflatedbaseplns = InflateGeometryOptimized(baseplns, deflationRules);
 
             // Filter
-            GH_Structure<GH_Plane> filteredbaseplns;
+            DataTree<Plane> filteredbaseplns;
             if (geometryFilterArray == null || geometryFilterArray.Count == 0)
             {
                 filteredbaseplns = inflatedbaseplns;
@@ -222,21 +245,21 @@ namespace Aperiodic
             }
 
             // Remove duplicates
-            GH_Structure<GH_Plane> culledbaseplns = CullDuplicatePlanesOptimized(filteredbaseplns, 0.1 * scale);
+            DataTree<Plane> culledbaseplns = CullDuplicatePlanesOptimized(filteredbaseplns, 0.1 * scale);
 
             return RecurseInflateGeometry(geometryFilterArray, filterDistance, includeInterior, centerpln, culledbaseplns, iterations - 1, scale, deflationRules);
         }
 
         // Optimized InflateGeometry using batch operations (sequential to maintain deterministic order)
-        public static GH_Structure<GH_Plane> InflateGeometryOptimized(
-            GH_Structure<GH_Plane> baseplns, 
+        public static DataTree<Plane> InflateGeometryOptimized(
+            DataTree<Plane> baseplns, 
             Plane[][][] deflationRules)
         {
             // Use lists for deterministic ordering (matching original behavior)
-            var resultLists = new List<GH_Plane>[4];
+            var resultLists = new List<Plane>[4];
             for (int i = 0; i < 4; i++)
             {
-                resultLists[i] = new List<GH_Plane>();
+                resultLists[i] = new List<Plane>();
             }
 
             // Process each tile type
@@ -252,7 +275,7 @@ namespace Aperiodic
                 {
                     if (!planes[j].IsValid) continue;
 
-                    Transform xcopyPlane = Transform.PlaneToPlane(Plane.WorldXY, planes[j].Value);
+                    Transform xcopyPlane = Transform.PlaneToPlane(Plane.WorldXY, planes[j]);
 
                     // Copy all planes from each branch
                     for (int branchIdx = 0; branchIdx < 4; branchIdx++)
@@ -262,24 +285,24 @@ namespace Aperiodic
                         {
                             Plane transformedPlane = sourcePlanes[p];
                             transformedPlane.Transform(xcopyPlane);
-                            resultLists[branchIdx].Add(new GH_Plane(transformedPlane));
+                            resultLists[branchIdx].Add(new Plane(transformedPlane));
                         }
                     }
                 }
             }
 
-            // Build result structure using AppendRange (much faster than individual Append)
-            GH_Structure<GH_Plane> result = new GH_Structure<GH_Plane>();
+            // Build result structure using AddRange (much faster than individual Add)
+            DataTree<Plane> result = new DataTree<Plane>();
             for (int i = 0; i < 4; i++)
             {
-                result.AppendRange(resultLists[i], new GH_Path(i));
+                result.AddRange(resultLists[i], new GH_Path(i));
             }
 
             return result;
         }
 
-        public static GH_Structure<GH_Plane> BrepFilterPlanesOptimized(
-            GH_Structure<GH_Plane> inflatedbaseplns, 
+        public static DataTree<Plane> BrepFilterPlanesOptimized(
+            DataTree<Plane> inflatedbaseplns, 
             Brep brepFilter, 
             double filterDistance, 
             bool includeInterior, 
@@ -291,17 +314,17 @@ namespace Aperiodic
             double filterDivisionFactor = Math.Pow(InverseDeflationScaleFactor, iterations - 1);
             double maxDistance = filterDistance * filterDivisionFactor + (buffer * 1.5);
 
-            var resultLists = new List<GH_Plane>[4];
+            var resultLists = new List<Plane>[4];
             
             for (int i = 0; i < 4; i++)
             {
                 var planes = inflatedbaseplns.Branches[i];
-                resultLists[i] = new List<GH_Plane>(planes.Count);
+                resultLists[i] = new List<Plane>(planes.Count);
                 
                 // Sequential processing to maintain deterministic order
                 for (int j = 0; j < planes.Count; j++)
                 {
-                    Point3d testPoint = planes[j].Value.Origin;
+                    Point3d testPoint = planes[j].Origin;
                     
                     if (includeInterior && brepFilter.IsPointInside(testPoint, RhinoMath.SqrtEpsilon, false))
                     {
@@ -323,16 +346,16 @@ namespace Aperiodic
                 }
             }
 
-            GH_Structure<GH_Plane> result = new GH_Structure<GH_Plane>();
+            DataTree<Plane> result = new DataTree<Plane>();
             for (int i = 0; i < 4; i++)
             {
-                result.AppendRange(resultLists[i], new GH_Path(i));
+                result.AddRange(resultLists[i], new GH_Path(i));
             }
             return result;
         }
 
-        public static GH_Structure<GH_Plane> CrvFilterPlanesOptimized(
-            GH_Structure<GH_Plane> inflatedbaseplns, 
+        public static DataTree<Plane> CrvFilterPlanesOptimized(
+            DataTree<Plane> inflatedbaseplns, 
             Curve crvFilter, 
             double filterDistance, 
             int iterations, 
@@ -343,17 +366,17 @@ namespace Aperiodic
             double filterDivisionFactor = Math.Pow(InverseDeflationScaleFactor, iterations - 1);
             double maxDistance = filterDistance * filterDivisionFactor + (buffer * 1.5);
 
-            var resultLists = new List<GH_Plane>[4];
+            var resultLists = new List<Plane>[4];
             
             for (int i = 0; i < 4; i++)
             {
                 var planes = inflatedbaseplns.Branches[i];
-                resultLists[i] = new List<GH_Plane>(planes.Count);
+                resultLists[i] = new List<Plane>(planes.Count);
                 
                 // Sequential processing to maintain deterministic order
                 for (int j = 0; j < planes.Count; j++)
                 {
-                    Point3d testPoint = planes[j].Value.Origin;
+                    Point3d testPoint = planes[j].Origin;
                     double t;
                     if (crvFilter.ClosestPoint(testPoint, out t, maxDistance))
                     {
@@ -362,16 +385,16 @@ namespace Aperiodic
                 }
             }
 
-            GH_Structure<GH_Plane> result = new GH_Structure<GH_Plane>();
+            DataTree<Plane> result = new DataTree<Plane>();
             for (int i = 0; i < 4; i++)
             {
-                result.AppendRange(resultLists[i], new GH_Path(i));
+                result.AddRange(resultLists[i], new GH_Path(i));
             }
             return result;
         }
 
         // Properly optimized duplicate culling with correct spatial hashing
-        public static GH_Structure<GH_Plane> CullDuplicatePlanesOptimized(GH_Structure<GH_Plane> filteredbaseplns, double tolerance)
+        public static DataTree<Plane> CullDuplicatePlanesOptimized(DataTree<Plane> filteredbaseplns, double tolerance)
         {
             // Cell size should be at least tolerance to ensure all potential duplicates 
             // are in adjacent cells. Using tolerance * 1.0 means checking 27 neighbor cells
@@ -379,7 +402,7 @@ namespace Aperiodic
             double cellSize = tolerance;
             double toleranceSq = tolerance * tolerance; // Use squared distance to avoid sqrt
             
-            var resultLists = new List<GH_Plane>[4];
+            var resultLists = new List<Plane>[4];
             
             for (int i = 0; i < 4; i++)
             {
@@ -387,17 +410,17 @@ namespace Aperiodic
                 
                 if (planes.Count == 0)
                 {
-                    resultLists[i] = new List<GH_Plane>();
+                    resultLists[i] = new List<Plane>();
                     continue;
                 }
 
                 // Dictionary mapping cell keys to list of points in that cell
                 var spatialGrid = new Dictionary<long, List<Point3d>>();
-                var uniquePlanes = new List<GH_Plane>(planes.Count);
+                var uniquePlanes = new List<Plane>(planes.Count);
                 
                 for (int j = 0; j < planes.Count; j++)
                 {
-                    Point3d testPoint = planes[j].Value.Origin;
+                    Point3d testPoint = planes[j].Origin;
                     bool isDup = false;
                     
                     // Calculate cell coordinates
@@ -449,10 +472,10 @@ namespace Aperiodic
                 resultLists[i] = uniquePlanes;
             }
 
-            GH_Structure<GH_Plane> result = new GH_Structure<GH_Plane>();
+            DataTree<Plane> result = new DataTree<Plane>();
             for (int i = 0; i < 4; i++)
             {
-                result.AppendRange(resultLists[i], new GH_Path(i));
+                result.AddRange(resultLists[i], new GH_Path(i));
             }
             return result;
         }
@@ -466,7 +489,34 @@ namespace Aperiodic
             }
         }
 
-        #region Zonohedra Generation
+        public static List<GeometryBase> GetGeoFilterArray(GeometryBase geo, int iterations, Plane centerpln)
+        {
+            Transform scaleInflate = Transform.Scale(centerpln.Origin, InverseDeflationScaleFactor);
+
+            GeometryBase geoCopy = geo.Duplicate();
+            List<GeometryBase> geoFilterArray = new List<GeometryBase>(iterations);
+            int count = iterations;
+            while (count > 0)
+            {
+                geoFilterArray.Add(geoCopy);
+                geoCopy = geoCopy.Duplicate();
+                geoCopy.Transform(scaleInflate);
+                count--;
+            }
+            return geoFilterArray;
+        }
+
+
+        /// <summary>
+        /// Returns the signed angle between two vectors on a plane.
+        /// Useful since Vector3d.VectorAngle only returns positive values.
+        /// </summary>
+        public static double GetSignedVectorAngle(Vector3d v1, Vector3d v2, Plane plane)
+        {
+            return Math.Atan2(Vector3d.CrossProduct(v1, v2) * plane.ZAxis, v1 * v2);
+        }
+
+        #region ---Zonohedra Generation---
         public static Mesh GenerateMeshA6(double scale)
         {
             List<Vector3d> starVectors = GenerateStarVectors(3, false);
@@ -700,21 +750,146 @@ namespace Aperiodic
 
         #endregion
 
-        public static List<GeometryBase> GetGeoFilterArray(GeometryBase geo, int iterations, Plane centerpln)
-        {
-            Transform scaleInflate = Transform.Scale(centerpln.Origin, InverseDeflationScaleFactor);
+        #region ---Seed Options---
 
-            GeometryBase geoCopy = geo.Duplicate();
-            List<GeometryBase> geoFilterArray = new List<GeometryBase>(iterations);
-            int count = iterations;
-            while (count > 0)
+        public static double GetMeshHeight(Mesh mesh)
+        {
+            BoundingBox bbox = mesh.GetBoundingBox(true);
+            return bbox.Max.Z - bbox.Min.Z;
+        }
+
+        public static DataTree<Plane> GenerateBasePlnsFromSeed(int seed, Plane centerpln, double a6HeightRef)
+        {
+            // Create baseplns data tree and ensure paths for each tile type
+            DataTree<Plane> baseplns = new DataTree<Plane>();
+
+            GH_Path pth0 = new GH_Path(0);
+            GH_Path pth1 = new GH_Path(1);
+            GH_Path pth2 = new GH_Path(2);
+            GH_Path pth3 = new GH_Path(3);
+
+            baseplns.EnsurePath(pth0);
+            baseplns.EnsurePath(pth1);
+            baseplns.EnsurePath(pth2);
+            baseplns.EnsurePath(pth3);
+
+            if (seed == 0)
             {
-                geoFilterArray.Add(geoCopy);
-                geoCopy = geoCopy.Duplicate();
-                geoCopy.Transform(scaleInflate);
-                count--;
+                Plane basepln = new Plane(Plane.WorldXY);
+                basepln.Transform(Transform.PlaneToPlane(Plane.WorldXY, centerpln));
+                baseplns.Add(basepln, pth3);
             }
-            return geoFilterArray;
+            else
+            {
+                // Set up seed 1 and 2 option (20 A6 tiles arranged as dodecahedron star)
+                // Golden ratio
+                double phi = (1 + Math.Sqrt(5)) / 2;
+                double invPhi = 1.0 / phi;
+
+                // 20 vertices of a regular dodecahedron using golden ratio
+                List<Vector3d> dodecahedronStarVectors = new List<Vector3d>
+                {
+                    // 8 vertices at (±1, ±1, ±1)
+                    new Vector3d(1, 1, 1),
+                    new Vector3d(1, 1, -1),
+                    new Vector3d(1, -1, 1),
+                    new Vector3d(1, -1, -1),
+                    new Vector3d(-1, 1, 1),
+                    new Vector3d(-1, 1, -1),
+                    new Vector3d(-1, -1, 1),
+                    new Vector3d(-1, -1, -1),
+                    // 4 vertices at (0, ±1/φ, ±φ)
+                    new Vector3d(0, invPhi, phi),
+                    new Vector3d(0, invPhi, -phi),
+                    new Vector3d(0, -invPhi, phi),
+                    new Vector3d(0, -invPhi, -phi),
+                    // 4 vertices at (±1/φ, ±φ, 0)
+                    new Vector3d(invPhi, phi, 0),
+                    new Vector3d(invPhi, -phi, 0),
+                    new Vector3d(-invPhi, phi, 0),
+                    new Vector3d(-invPhi, -phi, 0),
+                    // 4 vertices at (±φ, 0, ±1/φ)
+                    new Vector3d(phi, 0, invPhi),
+                    new Vector3d(phi, 0, -invPhi),
+                    new Vector3d(-phi, 0, invPhi),
+                    new Vector3d(-phi, 0, -invPhi)
+                };
+
+                // Adjacent dodecahedron vertices have dot product = √5 = φ + 1/φ (without unitizing)
+                double adjacentDotProduct = Math.Sqrt(5);  // ≈ 2.236
+                double tolerance = 0.1;  // Scaled for non-unitized vectors
+
+                foreach (Vector3d vector in dodecahedronStarVectors)
+                {
+                    Vector3d unitVector = vector;
+                    unitVector.Unitize();
+                    Vector3d scaledVector = unitVector * a6HeightRef / 2;
+                    Plane seedPlane = new Plane(Point3d.Origin + (Point3d)scaledVector, unitVector);
+
+                    // Find an adjacent vector to align the X-axis
+                    foreach (Vector3d otherVector in dodecahedronStarVectors)
+                    {
+                        double dot = vector * otherVector;  // No need to unitize for comparison
+                        if (Math.Abs(dot - adjacentDotProduct) < tolerance)
+                        {
+                            // Rotate the plane to align X-axis toward the adjacent vertex
+                            Vector3d edgeDirection = otherVector - vector;
+                            double angle = GetSignedVectorAngle(seedPlane.XAxis, edgeDirection, seedPlane);
+                            seedPlane.Rotate(angle + Math.PI, seedPlane.Normal);
+                            break;
+                        }
+                    }
+                    if (seed == 1)
+                    {
+                        seedPlane.Transform(Transform.PlaneToPlane(Plane.WorldXY, centerpln));
+                        baseplns.Add(seedPlane, pth0);
+                    }
+                    else if (seed == 2)
+                    {
+                        Plane flippedSeedPlane = new Plane(seedPlane);
+                        flippedSeedPlane.Flip();
+                        flippedSeedPlane.Rotate(-Math.PI / 2, flippedSeedPlane.Normal);
+                        flippedSeedPlane.Transform(Transform.PlaneToPlane(Plane.WorldXY, centerpln));
+                        baseplns.Add(flippedSeedPlane, pth0);
+                    }
+                }
+            }
+            return baseplns;
+        }
+
+        public static List<Curve> GetWireframeEdges(Mesh mesh)
+        {
+            var curves = new List<Curve>();
+            for (int i = 0; i < mesh.TopologyEdges.Count; i++)
+            {
+                Line line = mesh.TopologyEdges.EdgeLine(i);
+                curves.Add(new LineCurve(line));
+            }
+            return curves;
+        }
+        #endregion
+
+        public override void DrawViewportWires(IGH_PreviewArgs args)
+        {
+            var color = Attributes.Selected
+                ? args.WireColour_Selected
+                : args.WireColour;
+
+            foreach (var crv in _previewCurves)
+                args.Display.DrawCurve(crv, color, 2);
+        }
+
+        public override BoundingBox ClippingBox
+        {
+            get
+            {
+                var bb = BoundingBox.Empty;
+
+                foreach (var crv in _previewCurves)
+                    bb.Union(crv.GetBoundingBox(false));
+
+                return bb;
+            }
         }
 
         /// <summary>

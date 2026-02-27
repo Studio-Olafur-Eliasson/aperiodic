@@ -57,14 +57,12 @@ namespace Aperiodic
             GH_Path pth3 = new GH_Path(3);
 
             // TODO: Generate seed planes based on scale
-            Plane basePlane = Plane.WorldXY;
-            basePlane.Origin = new Point3d(0, 0, 0);
 
             // Set up seed 0 option (a single plane for the K30 tile)
             seedPlanes0.EnsurePath(pth0);
             seedPlanes0.EnsurePath(pth1);
             seedPlanes0.EnsurePath(pth2);
-            seedPlanes0.Append(new GH_Plane(basePlane), pth3);
+            seedPlanes0.Append(new GH_Plane(Plane.WorldXY), pth3);
 
             // Set up seed 1 option (20 A6 tiles arranged as dodecahedron star)
             // Golden ratio
@@ -111,7 +109,7 @@ namespace Aperiodic
                 Vector3d unitVector = vector;
                 unitVector.Unitize();
                 Vector3d scaledVector = unitVector * a6HeightRef / 2;
-                Plane seedPlane = new Plane(basePlane.Origin + (Point3d)scaledVector, unitVector);
+                Plane seedPlane = new Plane(Point3d.Origin + (Point3d)scaledVector, unitVector);
 
                 // Find an adjacent vector to align the X-axis
                 foreach (Vector3d otherVector in dodecahedronStarVectors)
