@@ -1344,6 +1344,7 @@ namespace Aperiodic
             return closestFaceIndex;
         }
 
+        // Note that this only works for placement of B12 and K30, not A6 or F20, since those are oriented based on the face center
         public static Plane GetOrientedPlaneFromRhombicFace(Mesh mesh, int faceIndex, Vector3d normalRef)
         {
             // Get center and normal vector of the current face

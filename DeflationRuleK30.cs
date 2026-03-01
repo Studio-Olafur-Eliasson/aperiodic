@@ -1036,21 +1036,20 @@ namespace Aperiodic
             return closestVertexIndex;
         }
 
+        // Note that this only works for placement of B12 and K30, not A6 or F20, since those are oriented based on the face center
         public static Plane GetOrientedPlaneFromRhombicFace(Mesh mesh, int faceIndex, Vector3d normalRef)
         {
             // Get center and normal vector of the current face
             Point3d centerFace = mesh.Faces.GetFaceCenter(faceIndex);
 
-            // Get two points on the face (one at acute and one at obtuse vertex)
-            Point3f a;
-            Point3f b;
-            Point3f c;
-            Point3f d;
-            mesh.Faces.GetFaceVertices(faceIndex, out a, out b, out c, out d);
+            // Get face vertex indices and convert to Point3d for better precision
+            MeshFace face = mesh.Faces[faceIndex];
+            Point3d a = new Point3d(mesh.Vertices[face.A]);
+            Point3d b = new Point3d(mesh.Vertices[face.B]);
 
             // Get oriented plane
-            Point3d xPt = new Point3d();
-            Point3d yPt = new Point3d();
+            Point3d xPt;
+            Point3d yPt;
 
             // Set xPt to be the closer of the two points
             if (centerFace.DistanceTo(a) < centerFace.DistanceTo(b))

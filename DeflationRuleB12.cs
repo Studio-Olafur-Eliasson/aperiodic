@@ -165,26 +165,6 @@ namespace Aperiodic
                 a6base = new Plane(baseCenter, basea6pts[1], basea6pts[0]);
             }
 
-            // Set up base orientation for F20 transformation later in step (k30-i)
-            Plane f20base = new Plane(Point3d.Origin, -Vector3d.XAxis, -Vector3d.YAxis);
-
-            // Set up base orientation for K30 transformation in step (a6-000)
-            Point3d k30basecenter = refK30.TopologyVertices[GetClosestVertex(refK30, new Point3d(0, -1, 0))];
-            Point3d k30basexaxis = refK30.TopologyVertices[GetClosestVertex(refK30, new Point3d(1, 0, 0))];
-            Point3d k30baseyaxis = new Point3d(-k30basexaxis.X, 0, 0);
-            Plane k30base = new Plane(k30basecenter, k30basexaxis, k30baseyaxis);
-
-            // Set up base orientation for B12 transformation in step (a6-000)
-            Point3d b12basecenter = refB12.TopologyVertices[GetClosestVertex(refB12, new Point3d(-0.5f, 0, 0))];
-            Point3d b12baseyaxis = refB12.TopologyVertices[GetClosestVertex(refB12, new Point3d(-0.5f, -0.5f, 1))];
-            Point3d b12basexaxis = new Point3d(b12baseyaxis.X, -b12baseyaxis.Y, b12baseyaxis.Z);
-            Plane b12base = new Plane(b12basecenter, b12basexaxis, b12baseyaxis);
-
-            //
-            // Get centroid
-            AreaMassProperties ampB12 = AreaMassProperties.Compute(mesh);
-            Point3d centroidB12 = ampB12.Centroid;
-
             // Scale up B12 unit to get general boundaries of the inflated shapes
             // Scale center point of geometry by a factor of golden ratio^3
             //Transform xformScaleB12 = Transform.Scale(centroidB12, deflationScaleFactor);
@@ -276,10 +256,12 @@ namespace Aperiodic
                 }
                 // Add 2 more b12 on the sides
                 // Note: needed to add tolerances since != 0 and == 0 were not giving correct results
+                // This is narowing down to the 4 faces of the rhombic triacontahedron that are perpendicular to planeb12k30 normal
                 else if ((compareFaceNormal < 0.0001) && (compareFaceNormal > -0.0001))
                 {
                     Plane planeb12b12 = GetOrientedPlaneFromRhombicFace(b12k300, i, b12b12normal);
                     double compareFaceOrientation = Vector3d.Multiply(planeb12b12.XAxis, planeb12k300.Normal);
+                    // Narrow down to the two faces along the long direction of the boundary B12 (x-axis is parallel to planeb12k300 normal)
                     if ((compareFaceOrientation < -0.0001) || (compareFaceOrientation > 0.0001))
                     {
                         Transform xformb12b12 = Transform.PlaneToPlane(Plane.WorldXY, planeb12b12);
@@ -325,17 +307,22 @@ namespace Aperiodic
                         for (int j = 0; j < b12b12.FaceNormals.Count; j++)
                         {
                             Vector3d b12b12facenormal = (Vector3d)b12b12.FaceNormals[j];
+                            // Find face of b12 that faces opposite direction of orientb12300
                             if (b12b12facenormal.IsParallelTo(orientb12k300) == -1)
                             {
-                                // Place at A6 tile
-                                Plane planeb12a61 = GetOrientedPlaneFromRhombicFace(b12b12, j, b12b12facenormal);
-                                // Move plane
-                                Vector3d shiftb12a61 = -planeb12a61.YAxis;
-                                shiftb12a61.Unitize();
-                                planeb12a61.Translate(shiftb12a61 * b12HeightRef / 2);
-                                // Rotate plane (not super neat)
-                                double acuteRhombusAngle = Math.Atan(2);
-                                planeb12a61.Rotate((Math.PI - acuteRhombusAngle) / 2, planeb12a61.Normal);
+                                // Place an A6 tile, get plane centered on acute vertex
+                                Plane planeb12a61 = GetOrientedPlaneFromRhombicFaceAcute(b12b12, j, b12b12facenormal);
+
+                                Point3d projectedOrigin = planeb12a61.Origin;
+                                projectedOrigin.Transform(Transform.PlanarProjection(planeb12b12));
+                                // If the plane origin is not on planeb12b12, we want to rotate 180 around the face center
+                                if (projectedOrigin.DistanceTo(planeb12a61.Origin) > 0.0001)
+                                {
+                                    Plane rotationPlane = GetOrientedPlaneFromRhombicFace(b12b12, j, b12b12facenormal);
+                                    // Use Rotate with 3 parameters to rotate around another origin
+                                    planeb12a61.Rotate(Math.PI, rotationPlane.Normal, rotationPlane.Origin);
+                                }
+
                                 Transform xformb12a61 = Transform.PlaneToPlane(a6base, planeb12a61);
                                 Mesh b12a61 = refA6.DuplicateMesh();
                                 b12a61.Transform(xformb12a61);
@@ -1529,6 +1516,8 @@ namespace Aperiodic
             return closestFaceIndex;
         }
 
+        // Note that this only works for placement of B12 and K30, not A6 or F20, since those are oriented based on the face center
+        // X-axis is aligned with closer of the two vertices
         public static Plane GetOrientedPlaneFromRhombicFace(Mesh mesh, int faceIndex, Vector3d normalRef)
         {
             // Get center and normal vector of the current face
@@ -1562,6 +1551,47 @@ namespace Aperiodic
                 plane.Flip();
                 plane.Rotate(Math.PI / 2, plane.Normal);
             }
+            return plane;
+        }
+
+        // Helper for placement of A6
+        public static Plane GetOrientedPlaneFromRhombicFaceAcute(Mesh mesh, int faceIndex, Vector3d normalRef)
+        {
+            // Get center and normal vector of the current face
+            Point3d centerFace = mesh.Faces.GetFaceCenter(faceIndex);
+
+            // Get face vertex indices and convert to Point3d for better precision
+            MeshFace face = mesh.Faces[faceIndex];
+            Point3d a = new Point3d(mesh.Vertices[face.A]);
+            Point3d b = new Point3d(mesh.Vertices[face.B]);
+            Point3d c = new Point3d(mesh.Vertices[face.C]);
+
+            // Get oriented plane
+            Point3d originPt;
+            Point3d xPt;
+            Point3d yPt;
+
+            // Set origin to be the point furthest from the center, xPt to be the closer of the two remaining points, and yPt to be the last point
+            if (centerFace.DistanceTo(a) > centerFace.DistanceTo(b))
+            {
+                originPt = a;
+                xPt = b;
+                yPt = c;
+            }
+            else
+            {
+                originPt = b;
+                xPt = c;
+                yPt = a;
+            }
+
+            Plane plane = new Plane(originPt, xPt, yPt);
+            // If dot product is negative we need to flip/rotate to point outwards
+            // if (Vector3d.Multiply(plane.Normal, normalRef) < 0)
+            // {
+            //     plane.Flip();
+            //     plane.Rotate(Math.PI / 2, plane.Normal);
+            // }
             return plane;
         }
 
