@@ -158,13 +158,8 @@ namespace Aperiodic
         {
             // Note: always duplicate reference meshes before modifying
 
-            // Declare variables
+            // Set up DataTree
             DataTree<Plane> deflationRulesA6 = new DataTree<Plane>();
-
-            GH_Path pth0 = new GH_Path(0);
-            GH_Path pth1 = new GH_Path(1);
-            GH_Path pth2 = new GH_Path(2);
-            GH_Path pth3 = new GH_Path(3);
 
             // Get height references from original input meshes
             double a6HeightRef = GetMeshHeight(refA6);
@@ -205,8 +200,6 @@ namespace Aperiodic
             List<Plane> plnsB12 = new List<Plane>();
             List<Plane> plnsF20 = new List<Plane>();
             List<Plane> plnsK30 = new List<Plane>();
-
-            // TODO: can we hardcode the location of these points / planes / hardcode the data for the mesh references? these would be fixed inside the component instead of as inputs (the inputs would be geometry to transform according to the 4 types)
 
             // Set up base orientation for A6 transformation later in step (h)
             // (Alternatively we could change the base position of the refA6 geometry but this might mean rewriting everything)
@@ -264,11 +257,6 @@ namespace Aperiodic
             Point3d b12basexaxis = new Point3d(b12baseyaxis.X, -b12baseyaxis.Y, b12baseyaxis.Z);
             Plane b12base = new Plane(b12basecenter, b12basexaxis, b12baseyaxis);
 
-            // This is rhombohedron (long tile)
-            // Begin deflation for A6
-
-            // TODO: Eventual order of operations for each new mesh/(pt)/pln - find new base plane first, then transform basemesh from worldXY to new base plane
-
             // Get centroid
             AreaMassProperties ampA6 = AreaMassProperties.Compute(mesh);
             Point3d centroidA6 = ampA6.Centroid;
@@ -312,10 +300,6 @@ namespace Aperiodic
             baseplna6a601.Translate(moveFarCopy); // TODO: understand why
             plnsA6.Add(baseplna6a600);
             plnsA6.Add(baseplna6a601);
-
-            // For testing/visual purposes
-            //listA6.Add(brep);
-            //ptsA6.Add(basept);
 
             // TODO: refactor to take advantage of the 3-fold symmetry (only build 1/3 sides and rotate at the end or after each construction step)
 
@@ -981,22 +965,18 @@ namespace Aperiodic
             TranslatePlanesInDirection(plnsK30, zOffset);
 
             // Output deflationRules
-            deflationRulesA6.AddRange(plnsA6, pth0);
-            deflationRulesA6.AddRange(plnsB12, pth1);
-            deflationRulesA6.AddRange(plnsF20, pth2);
-            deflationRulesA6.AddRange(plnsK30, pth3);
+            deflationRulesA6.AddRange(plnsA6, new GH_Path(0));
+            deflationRulesA6.AddRange(plnsB12, new GH_Path(1));
+            deflationRulesA6.AddRange(plnsF20, new GH_Path(2));
+            deflationRulesA6.AddRange(plnsK30, new GH_Path(3));
 
             return deflationRulesA6;
         }
 
         private static DataTree<Plane> GenerateDeflationPlanesB12(Mesh refA6, Mesh refB12, Mesh refF20, Mesh refK30)
         {
+            // Set up DataTree
             DataTree<Plane> deflationRulesB12 = new DataTree<Plane>();
-
-            GH_Path pth0 = new GH_Path(0);
-            GH_Path pth1 = new GH_Path(1);
-            GH_Path pth2 = new GH_Path(2);
-            GH_Path pth3 = new GH_Path(3);
 
             // Get height references from original input meshes
             double a6HeightRef = GetMeshHeight(refA6);
@@ -2297,10 +2277,10 @@ namespace Aperiodic
             TranslatePlanesInDirection(plnsK30, zOffset);
 
             // Output plns
-            deflationRulesB12.AddRange(plnsA6, pth0);
-            deflationRulesB12.AddRange(plnsB12, pth1);
-            deflationRulesB12.AddRange(plnsF20, pth2);
-            deflationRulesB12.AddRange(plnsK30, pth3);
+            deflationRulesB12.AddRange(plnsA6, new GH_Path(0));
+            deflationRulesB12.AddRange(plnsB12, new GH_Path(1));
+            deflationRulesB12.AddRange(plnsF20, new GH_Path(2));
+            deflationRulesB12.AddRange(plnsK30, new GH_Path(3));
 
             return deflationRulesB12;
         }
