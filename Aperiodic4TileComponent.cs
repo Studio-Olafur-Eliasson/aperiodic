@@ -38,12 +38,12 @@ namespace Aperiodic
         /// </summary>
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
-            pManager.AddGeometryParameter("geometryFilter", "geoFilter", "(Optional) Input a geometry filter (Brep or Curve) to define the output shape of the tiling and reduce computation time.", GH_ParamAccess.item);
-            pManager.AddNumberParameter("filterDistance", "fDist", "Distance from the geometryFilter within which tiles should be included in the output.", GH_ParamAccess.item, 1.0);
-            pManager.AddBooleanParameter("includeInterior", "incInt", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default false.", GH_ParamAccess.item, false);
-            pManager.AddPlaneParameter("center_pln", "center", "Plane input for the center of the recursive tile-generation process. Default: World XY.", GH_ParamAccess.item, Plane.WorldXY);
-            pManager.AddIntegerParameter("iterations", "i", "Number of iterations of the recursive process. If iterations > 2, must use geometryFilter to avoid crashing. Set iterations = 0 to view the starting \"seed\" tiles of the recusive process. Default: 1", GH_ParamAccess.item, 1);
-            pManager.AddIntegerParameter("seedOption", "seedOption", "Enter an integer option, 0, 1, or 2. According to Socolar and Steinhardt, who published the discovery of this 4-tile configuration in 1986, there exist exactly three packings with a single center of icosahedral point symmetry in 3D Euclidean space. These three options are each generated with one of the following \"seed\" tile configurations: 0 = a single rhombic triacontahedron tile (Default); 1 = a star of twenty rhombohedra, which, after deflation/inflation, are surrounded by rhombic triacontahedra; 2 = a star of twenty rhombohedra, with flipped orientations with respect to the previous option, so that they are surrounded by rhombic icosahedra on the next layer after deflation/inflation.", GH_ParamAccess.item);
+            pManager.AddGeometryParameter("Geometry Filter", "geometryFilter", "(Optional) Input a geometry filter (Brep or Curve) to define the output shape of the tiling and reduce computation time.", GH_ParamAccess.item);
+            pManager.AddNumberParameter("Filter Distance", "filterDistance", "Distance from the geometryFilter within which tiles should be included in the output.", GH_ParamAccess.item, 1.0);
+            pManager.AddBooleanParameter("IncludeInterior", "includeInterior", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default false.", GH_ParamAccess.item, false);
+            pManager.AddPlaneParameter("Center Plane", "centerPln", "Plane input for the center of the recursive tile-generation process. Default: World XY.", GH_ParamAccess.item, Plane.WorldXY);
+            pManager.AddIntegerParameter("Iterations", "iterations", "Number of iterations of the recursive process. If iterations > 2, must use geometryFilter to avoid crashing. Set iterations = 0 to view the starting \"seed\" tiles of the recusive process. Default: 1", GH_ParamAccess.item, 1);
+            pManager.AddIntegerParameter("SeedOption", "seedOption", "Enter an integer option, 0, 1, or 2. According to Socolar and Steinhardt, who published the discovery of this 4-tile configuration in 1986, there exist exactly three packings with a single center of icosahedral point symmetry in 3D Euclidean space. These three options are each generated with one of the following \"seed\" tile configurations: 0 = a single rhombic triacontahedron tile (Default); 1 = a star of twenty rhombohedra, which, after deflation/inflation, are surrounded by rhombic triacontahedra; 2 = a star of twenty rhombohedra, with flipped orientations with respect to the previous option, so that they are surrounded by rhombic icosahedra on the next layer after deflation/inflation.", GH_ParamAccess.item);
         }
 
         /// <summary>
@@ -51,8 +51,9 @@ namespace Aperiodic
         /// </summary>
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            pManager.AddGeometryParameter("geometryFilterArray", "geoFilterArr", "Array of geometry (Brep or Curve) scaled according to the deflation scale factor and iterations.", GH_ParamAccess.list);
-            pManager.AddPlaneParameter("recursionResultplns", "resultPlns", "Tree of planes representing the positions and orientations of the generated tiles.", GH_ParamAccess.tree);
+            pManager.AddMeshParameter("Base Meshes", "baseMeshes", "Set of base mesh geometry of the four zonohedral tiles. Apply the output transformations to view tiling result.", GH_ParamAccess.tree);
+            pManager.AddBrepParameter("Base Breps", "baseBreps", "Set of base brep geometry of the four zonohedral tiles. Apply the output transformations to view tiling result.", GH_ParamAccess.tree);
+            pManager.AddPlaneParameter("Transformations", "X", "Result of recursive process: a data tree of planes representing the positions and orientations of the generated tiles.", GH_ParamAccess.tree);
         }
 
         /// <summary>
@@ -98,13 +99,18 @@ namespace Aperiodic
                 gfaCopy = gfa.GetRange(0, gfa.Count);
             }
 
-            DA.SetDataList(0, gfaCopy);
+            // DA.SetDataList(0, gfaCopy);
 
             // Generate meshes for each tile type
             Mesh refA6 = GenerateMeshA6(scale);
             Mesh refB12 = GenerateMeshB12(scale);
             Mesh refF20 = GenerateMeshF20(scale);
             Mesh refK30 = GenerateMeshK30(scale);
+            DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
+            baseMeshes.Add(refA6.DuplicateMesh(), new GH_Path(0));
+            baseMeshes.Add(refB12.DuplicateMesh(), new GH_Path(1));
+            baseMeshes.Add(refF20.DuplicateMesh(), new GH_Path(2));
+            baseMeshes.Add(refK30.DuplicateMesh(), new GH_Path(3));
 
             // Generate the base planes according to chosen seed option and center plane
             double a6HeightRef = GetMeshHeight(refA6);
@@ -149,7 +155,16 @@ namespace Aperiodic
 
             DataTree<Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, deflationRules);
 
-            DA.SetDataTree(1, outputplns);
+            // Generate Base Breps
+            DataTree<Brep> baseBreps = new DataTree<Brep>();
+            Brep brepA6 = GenerateBrepA6(scale);
+            Brep brepB12 = GenerateBrepB12(scale);
+            Brep brepF20 = GenerateBrepF20(scale);
+            Brep brepK30 = GenerateBrepK30(scale);
+
+            DA.SetDataTree(0, baseMeshes);
+            DA.SetDataTree(1, baseBreps);
+            DA.SetDataTree(2, outputplns);
         }
 
         #region Generate Deflation Planes / Rules
@@ -5097,6 +5112,155 @@ namespace Aperiodic
             {
                 mesh.Translate(new Vector3d(0, 0, -minZ));
             }
+        }
+
+        public static Brep GenerateBrepA6(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(3, false);
+            Brep brepA6 = GenerateZonohedronBrepFromStarVectors(starVectors, scale);
+            brepA6.Rotate(Math.PI / 2, Vector3d.ZAxis, Point3d.Origin);
+
+            // Golden ratio
+            double phi = (1 + Math.Sqrt(5)) / 2;
+            // Rotate according to angle between long diagonal and face, so that long diagonal axis aligns with Z axis
+            // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
+            brepA6.Rotate(-Math.Acos(phi / Math.Sqrt(3)) - (Math.PI / 2), Vector3d.YAxis, Point3d.Origin);
+            return brepA6;
+        }
+
+        public static Brep GenerateBrepB12(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(4, false);
+            return GenerateZonohedronBrepFromStarVectors(starVectors, scale);
+        }
+
+        public static Brep GenerateBrepF20(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(5, false);
+            Brep brepF20 = GenerateZonohedronBrepFromStarVectors(starVectors, scale);
+            brepF20.Rotate(Math.PI, Vector3d.ZAxis, Point3d.Origin);
+            brepF20.Rotate(Math.Asin(Math.Sqrt((5 + Math.Sqrt(5)) / 10)), Vector3d.YAxis, Point3d.Origin);
+            return brepF20;
+        }
+
+        public static Brep GenerateBrepK30(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(6, false);
+            return GenerateZonohedronBrepFromStarVectors(starVectors, scale);
+        }
+
+        public static Brep GenerateZonohedronBrepFromStarVectors(List<Vector3d> starVectors, double scale)
+        {
+            // Scale star vectors
+            List<Vector3d> scaledStarVectors = new List<Vector3d>();
+            foreach (Vector3d vec in starVectors)
+            {
+                vec.Unitize();
+                scaledStarVectors.Add(Vector3d.Multiply(vec, scale * 0.5));
+            }
+
+            // Generate normal vectors for faces
+            List<Vector3d> normalVectors = new List<Vector3d>();
+
+            // Using all pairwise combinations of generators
+            for (int i = 0; i < scaledStarVectors.Count; i++)
+            {
+                for (int j = i + 1; j < scaledStarVectors.Count; j++)
+                {
+                    Vector3d a = scaledStarVectors[i];
+                    Vector3d b = scaledStarVectors[j];
+
+                    // Get normal vector via cross product
+                    Vector3d n = Vector3d.CrossProduct(a, b);
+                    normalVectors.Add(n);
+                }
+            }
+
+            // Brep face generation
+            List<Surface> faces = new List<Surface>();
+
+            foreach (Vector3d n in normalVectors)
+            {
+                // Set up face p-representation and its opposite
+                List<int> face_p_representation = new List<int>();
+
+                // Loop through star vectors
+                foreach (Vector3d v in scaledStarVectors)
+                {
+                    // Get dot product
+                    double d = Vector3d.Multiply(n, v);
+                    // Create p-representation entries
+                    if (Math.Abs(d) < 0.0001)
+                    {
+                        face_p_representation.Add(0);
+                    }
+                    else if (d > 0)
+                    {
+                        face_p_representation.Add(1);
+                    }
+                    else
+                    {
+                        face_p_representation.Add(-1);
+                    }
+                }
+
+                // Create vertex p-represetnations
+                List<int> v1_p_representation = new List<int>();
+                List<int> v2_p_representation = new List<int>();
+                List<int> v3_p_representation = new List<int>();
+                List<int> v4_p_representation = new List<int>();
+
+                bool firstZeroFound = false;
+                // Loop through face_p_representation to create vertices
+                for (int i = 0; i < face_p_representation.Count; i++)
+                {
+                    if (!firstZeroFound && face_p_representation[i] == 0)
+                    {
+                        firstZeroFound = true;
+                        v1_p_representation.Add(1);
+                        v2_p_representation.Add(1);
+                        v3_p_representation.Add(-1);
+                        v4_p_representation.Add(-1);
+                    }
+                    else if (firstZeroFound && face_p_representation[i] == 0)
+                    {
+                        v1_p_representation.Add(1);
+                        v2_p_representation.Add(-1);
+                        v3_p_representation.Add(-1);
+                        v4_p_representation.Add(1);
+                    }
+                    else
+                    {
+                        v1_p_representation.Add(face_p_representation[i]);
+                        v2_p_representation.Add(face_p_representation[i]);
+                        v3_p_representation.Add(face_p_representation[i]);
+                        v4_p_representation.Add(face_p_representation[i]);
+                    }
+                }
+
+                // Compute vertex positions from p-representations
+                Point3d v1 = new Point3d(0, 0, 0);
+                Point3d v2 = new Point3d(0, 0, 0);
+                Point3d v3 = new Point3d(0, 0, 0);
+                Point3d v4 = new Point3d(0, 0, 0);
+                for (int i = 0; i < scaledStarVectors.Count; i++)
+                {
+                    v1 += scaledStarVectors[i] * v1_p_representation[i];
+                    v2 += scaledStarVectors[i] * v2_p_representation[i];
+                    v3 += scaledStarVectors[i] * v3_p_representation[i];
+                    v4 += scaledStarVectors[i] * v4_p_representation[i];
+                }
+
+                // Create face from vertices (v1, v2, v3, v4)
+                Surface face = NurbsSurface.CreateFromCorners(v1, v2, v3, v4);
+                Surface faceOpposite = NurbsSurface.CreateFromCorners(-v1, -v2, -v3, -v4);
+                faces.Add((Surface)face.Duplicate());
+                faces.Add((Surface)faceOpposite.Duplicate());
+            }
+
+            // Assemble face surfaces into a Brep
+            Brep brep = Brep.JoinBreps(faces.ConvertAll(f => Brep.CreateFromSurface(f)), 0.01)[0];
+            return brep;
         }
 
         #endregion
