@@ -43,12 +43,8 @@ namespace Aperiodic
             pManager.AddNumberParameter("filterDistance", "fDist", "Distance from the geometryFilter within which tiles should be included in the output.", GH_ParamAccess.item, 1.0);
             pManager.AddBooleanParameter("includeInterior", "incInt", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default false.", GH_ParamAccess.item, false);
             pManager.AddPlaneParameter("center_pln", "center", "Plane input for the center of the recursive tile-generation process. Default: World XY.", GH_ParamAccess.item, Plane.WorldXY);
-            pManager.AddIntegerParameter("seedOption", "seedOption", "Enter an integer option, 0, 1, or 2. According to Socolar and Steinhardt, who published the discovery of this 4-tile configuration in 1986, there exist exactly three packings with a single center of icosahedral point symmetry in 3D Euclidean space. These three options are each generated with one of the following \"seed\" tile configurations: 0 = a single rhombic triacontahedron tile (Default); 1 = a star of twenty rhombohedra, which, after deflation/inflation, are surrounded by rhombic triacontahedra; 2 = a star of twenty rhombohedra, with flipped orientations with respect to the previous option, so that they are surrounded by rhombic icosahedra on the next layer after deflation/inflation.", GH_ParamAccess.item);
             pManager.AddIntegerParameter("iterations", "i", "Number of iterations of the recursive process. If iterations > 2, must use geometryFilter to avoid crashing. Set iterations = 0 to view the starting \"seed\" tiles of the recusive process. Default: 1", GH_ParamAccess.item, 1);
-            pManager.AddPlaneParameter("deflationA6plns", "a6plns", "Deflation planes making up the A6 deflation rule.", GH_ParamAccess.tree);
-            pManager.AddPlaneParameter("deflationB12plns", "b12plns", "Deflation planes making up the B12 deflation rule.", GH_ParamAccess.tree);
-            pManager.AddPlaneParameter("deflationF20plns", "f20plns", "Deflation planes making up the F20 deflation rule.", GH_ParamAccess.tree);
-            pManager.AddPlaneParameter("deflationK30plns", "k30plns", "Deflation planes making up the K30 deflation rule.", GH_ParamAccess.tree);
+            pManager.AddIntegerParameter("seedOption", "seedOption", "Enter an integer option, 0, 1, or 2. According to Socolar and Steinhardt, who published the discovery of this 4-tile configuration in 1986, there exist exactly three packings with a single center of icosahedral point symmetry in 3D Euclidean space. These three options are each generated with one of the following \"seed\" tile configurations: 0 = a single rhombic triacontahedron tile (Default); 1 = a star of twenty rhombohedra, which, after deflation/inflation, are surrounded by rhombic triacontahedra; 2 = a star of twenty rhombohedra, with flipped orientations with respect to the previous option, so that they are surrounded by rhombic icosahedra on the next layer after deflation/inflation.", GH_ParamAccess.item);
         }
 
         /// <summary>
@@ -75,22 +71,14 @@ namespace Aperiodic
             int seed = 0;
             int iterations = 1;
             double scale = 1.0;
-            GH_Structure<GH_Plane> deflationA6plns = new GH_Structure<GH_Plane>();
-            GH_Structure<GH_Plane> deflationB12plns = new GH_Structure<GH_Plane>();
-            GH_Structure<GH_Plane> deflationF20plns = new GH_Structure<GH_Plane>();
-            GH_Structure<GH_Plane> deflationK30plns = new GH_Structure<GH_Plane>();
 
             // Retrieve data from input parameters
             if (!DA.GetData(0, ref geometryFilter)) { return; }
             if (!DA.GetData(1, ref filterDistance)) { return; }
             if (!DA.GetData(2, ref includeInterior)) { return; }
             if (!DA.GetData(3, ref centerpln)) { return; }
-            if (!DA.GetData(4, ref seed)) { return; }
-            if (!DA.GetData(5, ref iterations)) { return; }
-            if (!DA.GetDataTree<GH_Plane>(6, out deflationA6plns)) { return; }
-            if (!DA.GetDataTree<GH_Plane>(7, out deflationB12plns)) { return; }
-            if (!DA.GetDataTree<GH_Plane>(8, out deflationF20plns)) { return; }
-            if (!DA.GetDataTree<GH_Plane>(9, out deflationK30plns)) { return; }
+            if (!DA.GetData(4, ref iterations)) { return; }
+            if (!DA.GetData(5, ref seed)) { return; }
 
             List<GeometryBase> gfa = null;
             List<GeometryBase> gfaCopy = null;
@@ -114,61 +102,93 @@ namespace Aperiodic
             DA.SetDataList(0, gfaCopy);
 
             // Generate meshes for each tile type
-            Mesh meshA6 = GenerateMeshA6(scale);
-            Mesh meshB12 = GenerateMeshB12(scale);
-            Mesh meshF20 = GenerateMeshF20(scale);
-            Mesh meshK30 = GenerateMeshK30(scale);
+            Mesh refA6 = GenerateMeshA6(scale);
+            Mesh refB12 = GenerateMeshB12(scale);
+            Mesh refF20 = GenerateMeshF20(scale);
+            Mesh refK30 = GenerateMeshK30(scale);
 
             // Generate the base planes according to chosen seed option and center plane
-            double a6HeightRef = GetMeshHeight(meshA6);
+            double a6HeightRef = GetMeshHeight(refA6);
             DataTree<Plane> baseplns = GenerateBasePlnsFromSeed(seed, centerpln, a6HeightRef);
 
-            // Generate wireframe preview
+            // Generate wireframe preview (only need to check branches 0 and 3 since seed options only include those two types of tiles)
             _previewCurves.Clear();
             foreach (var pln in baseplns.Branch(0))
             {
-                Mesh meshCopy = meshA6.DuplicateMesh();
+                Mesh meshCopy = refA6.DuplicateMesh();
                 meshCopy.Transform(Transform.PlaneToPlane(Plane.WorldXY, pln));
                 meshCopy.Scale(Math.Pow(DeflationScaleFactor, iterations));
                 _previewCurves.AddRange(GetWireframeEdges(meshCopy));
             }
             foreach (var pln in baseplns.Branch(3))
             {
-                Mesh meshCopy = meshK30.DuplicateMesh();
+                Mesh meshCopy = refK30.DuplicateMesh();
                 meshCopy.Transform(Transform.PlaneToPlane(Plane.WorldXY, pln));
                 meshCopy.Scale(Math.Pow(DeflationScaleFactor, iterations));
                 _previewCurves.AddRange(GetWireframeEdges(meshCopy));
             }
 
+            // Translate reference meshes so their base sits on WorldXY plane (preparing to apply deflation rules)
+            TranslateToWorldXY(refA6);
+            TranslateToWorldXY(refB12);
+            TranslateToWorldXY(refF20);
+            TranslateToWorldXY(refK30);
+
+            // Generate deflation rules
+            DataTree<Plane> generatedA6plns = GenerateDeflationPlanesA6(refA6, refB12, refF20, refK30);
+            DataTree<Plane> generatedB12plns = GenerateDeflationPlanesB12(refA6, refB12, refF20, refK30);
+            DataTree<Plane> generatedF20plns = GenerateDeflationPlanesF20(refA6, refB12, refF20, refK30);
+            DataTree<Plane> generatedK30plns = GenerateDeflationPlanesK30(refA6, refB12, refF20, refK30);
+
             // Pre-extract deflation planes to native Plane arrays for faster access
             // deflationRules[tileType] = Plane[branchIndex][planeIndex]
             Plane[][][] deflationRules = new Plane[4][][];
-            deflationRules[0] = ExtractPlaneArrays(deflationA6plns);
-            deflationRules[1] = ExtractPlaneArrays(deflationB12plns);
-            deflationRules[2] = ExtractPlaneArrays(deflationF20plns);
-            deflationRules[3] = ExtractPlaneArrays(deflationK30plns);
+            deflationRules[0] = ExtractPlaneArrays(generatedA6plns);
+            deflationRules[1] = ExtractPlaneArrays(generatedB12plns);
+            deflationRules[2] = ExtractPlaneArrays(generatedF20plns);
+            deflationRules[3] = ExtractPlaneArrays(generatedK30plns);
 
             DataTree<Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, deflationRules);
 
             DA.SetDataTree(1, outputplns);
         }
 
+        private DataTree<Plane> GenerateDeflationPlanesA6(Mesh refA6, Mesh refB12, Mesh refF20, Mesh refK30)
+        {
+            throw new NotImplementedException();
+        }
+
+        private DataTree<Plane> GenerateDeflationPlanesB12(Mesh refA6, Mesh refB12, Mesh refF20, Mesh refK30)
+        {
+            throw new NotImplementedException();
+        }
+
+        private DataTree<Plane> GenerateDeflationPlanesF20(Mesh refA6, Mesh refB12, Mesh refF20, Mesh refK30)
+        {
+            throw new NotImplementedException();
+        }
+
+        private DataTree<Plane> GenerateDeflationPlanesK30(Mesh refA6, Mesh refB12, Mesh refF20, Mesh refK30)
+        {
+            throw new NotImplementedException();
+        }
+
         // Extract planes from GH_Structure to native arrays for faster iteration
         // Returns Plane[branchIndex][planeIndex]
-        private static Plane[][] ExtractPlaneArrays(GH_Structure<GH_Plane> ghStructure)
+        private static Plane[][] ExtractPlaneArrays(DataTree<Plane> planesDataTree)
         {
-            int branchCount = Math.Min(ghStructure.Branches.Count, 4);
+            int branchCount = Math.Min(planesDataTree.Branches.Count, 4);
             var result = new Plane[4][];
             
             for (int i = 0; i < 4; i++)
             {
                 if (i < branchCount)
                 {
-                    var branch = ghStructure.Branches[i];
+                    var branch = planesDataTree.Branches[i];
                     result[i] = new Plane[branch.Count];
                     for (int j = 0; j < branch.Count; j++)
                     {
-                        result[i][j] = branch[j].Value;
+                        result[i][j] = branch[j];
                     }
                 }
                 else
@@ -746,6 +766,24 @@ namespace Aperiodic
             mesh.Compact();
 
             return mesh;
+        }
+
+        public static void TranslateToWorldXY(Mesh mesh)
+        {
+            // Find the minimum Z value among all topology vertices
+            double minZ = double.MaxValue;
+            for (int i = 0; i < mesh.TopologyVertices.Count; i++)
+            {
+                double z = mesh.TopologyVertices[i].Z;
+                if (z < minZ)
+                    minZ = z;
+            }
+
+            // Translate the mesh so its base sits on WorldXY (Z = 0)
+            if (Math.Abs(minZ) > 0.0001) // Only translate if not already at Z = 0
+            {
+                mesh.Translate(new Vector3d(0, 0, -minZ));
+            }
         }
 
         #endregion
