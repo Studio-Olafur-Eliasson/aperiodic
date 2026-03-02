@@ -179,7 +179,7 @@ namespace Aperiodic
             DA.SetDataTree(2, outputplns);
         }
 
-        #region Generate Deflation Planes / Rules
+        #region ---Generate Deflation Planes / Rules---
         private static DataTree<Plane> GenerateDeflationPlanesA6(Mesh refA6, Mesh refB12, Mesh refF20, Mesh refK30)
         {
             // Note: always duplicate reference meshes before modifying
@@ -4295,7 +4295,7 @@ namespace Aperiodic
 
         #endregion
 
-        #region Helper Methods for Deflation Rule Generation
+        #region ---Helper Methods for Deflation Rule Generation---
 
         public static int GetFurthestVertex(Mesh mesh, Point3d reference)
         {
@@ -4512,6 +4512,8 @@ namespace Aperiodic
         }
 
         #endregion
+
+        #region ---Helper Methods for Recursive Inflation---
 
         // Extract planes from GH_Structure to native arrays for faster iteration
         // Returns Plane[branchIndex][planeIndex]
@@ -4876,6 +4878,8 @@ namespace Aperiodic
             return Math.Atan2(Vector3d.CrossProduct(v1, v2) * plane.ZAxis, v1 * v2);
         }
 
+        #endregion
+
         #region ---Zonohedra Generation---
         public static Mesh GenerateMeshA6(double scale)
         {
@@ -4983,7 +4987,7 @@ namespace Aperiodic
         public static List<Vector3d> GenerateStarVectors(int numZones, bool isO6)
         {
             // Golden ratio
-            double phi = (1 + Math.Sqrt(5)) / 2;
+            double phi = GoldenRatio;
 
             // Get all icosahedral star vectors
             List<Vector3d> allStarVectors = new List<Vector3d>
@@ -5384,6 +5388,9 @@ namespace Aperiodic
             return baseplns;
         }
 
+        #endregion
+
+        #region ---Preview---
         public static List<Curve> GetWireframeEdges(Mesh mesh)
         {
             var curves = new List<Curve>();
@@ -5394,8 +5401,7 @@ namespace Aperiodic
             }
             return curves;
         }
-        #endregion
-
+        
         public override void DrawViewportWires(IGH_PreviewArgs args)
         {
             var color = Attributes.Selected
@@ -5418,6 +5424,8 @@ namespace Aperiodic
                 return bb;
             }
         }
+
+        #endregion
 
         /// <summary>
         /// Provides an Icon for every component that will be visible in the User Interface.
