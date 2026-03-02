@@ -100,13 +100,20 @@ namespace Aperiodic
                 {
                     Plane transformedO6 = decompO6;
                     transformedO6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
-                    outputTransformations.Add(transformedO6, pth0);
+                    if (CheckGeometryFilter(geometryFilter, transformedO6, filterDistance, includeInterior))
+                    {
+                        outputTransformations.Add(transformedO6, pth0);
+                    }
+                    
                 }
                 foreach (Plane decompA6 in decompositionPlanesA6[1])
                 {
                     Plane transformedA6 = decompA6;
                     transformedA6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
-                    outputTransformations.Add(transformedA6, pth1);
+                    if (CheckGeometryFilter(geometryFilter, transformedA6, filterDistance, includeInterior))
+                    {
+                        outputTransformations.Add(transformedA6, pth1);
+                    }
                 }
             }
 
@@ -117,13 +124,19 @@ namespace Aperiodic
                 {
                     Plane transformedO6 = decompO6;
                     transformedO6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
-                    outputTransformations.Add(transformedO6, pth0);
+                    if (CheckGeometryFilter(geometryFilter, transformedO6, filterDistance, includeInterior))
+                    {
+                        outputTransformations.Add(transformedO6, pth0);
+                    }
                 }
                 foreach (Plane decompA6 in decompositionPlanesB12[1])
                 {
                     Plane transformedA6 = decompA6;
                     transformedA6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
-                    outputTransformations.Add(transformedA6, pth1);
+                    if (CheckGeometryFilter(geometryFilter, transformedA6, filterDistance, includeInterior))
+                    {
+                        outputTransformations.Add(transformedA6, pth1);
+                    }
                 }
             }
 
@@ -146,6 +159,46 @@ namespace Aperiodic
             DA.SetDataTree(0, baseMeshes);
             DA.SetDataTree(1, baseBreps);
             DA.SetDataTree(2, outputTransformations);
+        }
+
+        
+
+        public static bool CheckGeometryFilter(GeometryBase geometryFilter, Plane tilePlane, double filterDistance, bool includeInterior)
+        {
+            if (geometryFilter == null) return true; // No filter, so all tiles are valid
+
+            // Create a point on the tile plane to check against the filter
+            Point3d tilePoint = tilePlane.Origin;
+
+            // If filter is a Brep
+            if (geometryFilter.HasBrepForm)
+            {
+                Brep brepFilter = Brep.TryConvertBrep(geometryFilter);
+                if (includeInterior && brepFilter.IsSolid)
+                {
+                    if (brepFilter.IsPointInside(tilePoint, 0.01, true))
+                    {
+                        return true; // Tile is inside the filter
+                    }
+                }
+                // For non-solid Breps or if not including interior, or for remaining tiles
+                // Check if tile is within filter distance of the Brep surface
+                double closestDist = brepFilter.ClosestPoint(tilePoint).DistanceTo(tilePoint);
+                if (closestDist <= filterDistance)
+                {
+                    return true; // Tile is within distance of the filter
+                }
+                else return false; // Tile is too far from the filter
+            }
+            // If filter is a Curve
+            else if (geometryFilter is Curve crvFilter)
+            {
+                // For curves, we can check if the tile point is within a certain distance
+                double t;
+                if (crvFilter.ClosestPoint(tilePoint, out t, filterDistance)) return true;
+                else return false;
+            }
+            else return true; // TODO: Implement filter for other geometry types (mesh, point, etc)
         }
 
         #region ---Decomposition Plane Generation---

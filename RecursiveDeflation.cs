@@ -285,30 +285,40 @@ namespace Aperiodic
             double filterDivisionFactor = Math.Pow(InverseDeflationScaleFactor, iterations - 1);
             double maxDistance = filterDistance * filterDivisionFactor + (buffer * 1.5);
 
+            // Pre-compute expanded bounding box for fast rejection
+            BoundingBox filterBBox = brepFilter.GetBoundingBox(false);
+            filterBBox.Inflate(maxDistance);
+
             var resultLists = new List<GH_Plane>[4];
-            
+
             for (int i = 0; i < 4; i++)
             {
                 var planes = inflatedbaseplns.Branches[i];
                 resultLists[i] = new List<GH_Plane>(planes.Count);
-                
+
                 // Sequential processing to maintain deterministic order
                 for (int j = 0; j < planes.Count; j++)
                 {
                     Point3d testPoint = planes[j].Value.Origin;
-                    
+
+                    // Fast bounding box rejection - skip expensive calculations if obviously too far
+                    if (!filterBBox.Contains(testPoint))
+                    {
+                        continue;
+                    }
+
                     if (includeInterior && brepFilter.IsPointInside(testPoint, RhinoMath.SqrtEpsilon, false))
                     {
                         resultLists[i].Add(planes[j]);
                         continue;
                     }
-                    
+
                     Point3d closestPoint;
                     ComponentIndex ci;
                     double s, t;
                     Vector3d normal;
                     brepFilter.ClosestPoint(testPoint, out closestPoint, out ci, out s, out t, maxDistance, out normal);
-                    
+
                     double dist = testPoint.DistanceTo(closestPoint);
                     if (dist > 0 && dist < maxDistance)
                     {
@@ -337,17 +347,28 @@ namespace Aperiodic
             double filterDivisionFactor = Math.Pow(InverseDeflationScaleFactor, iterations - 1);
             double maxDistance = filterDistance * filterDivisionFactor + (buffer * 1.5);
 
+            // Pre-compute expanded bounding box for fast rejection
+            BoundingBox filterBBox = crvFilter.GetBoundingBox(false);
+            filterBBox.Inflate(maxDistance);
+
             var resultLists = new List<GH_Plane>[4];
-            
+
             for (int i = 0; i < 4; i++)
             {
                 var planes = inflatedbaseplns.Branches[i];
                 resultLists[i] = new List<GH_Plane>(planes.Count);
-                
+
                 // Sequential processing to maintain deterministic order
                 for (int j = 0; j < planes.Count; j++)
                 {
                     Point3d testPoint = planes[j].Value.Origin;
+
+                    // Fast bounding box rejection - skip expensive calculations if obviously too far
+                    if (!filterBBox.Contains(testPoint))
+                    {
+                        continue;
+                    }
+
                     double t;
                     if (crvFilter.ClosestPoint(testPoint, out t, maxDistance))
                     {
