@@ -2,7 +2,6 @@ using Grasshopper;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
-using Grasshopper.Kernel.Types.Transforms;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
@@ -11,6 +10,9 @@ namespace Aperiodic
 {
     public class Aperiodic2TileComponent : GH_Component
     {
+        // Cache commonly used constants
+        private static readonly double GoldenRatio = (1 + Math.Sqrt(5)) / 2;
+
         /// <summary>
         /// Each implementation of GH_Component must provide a public 
         /// constructor without any arguments.
@@ -75,7 +77,57 @@ namespace Aperiodic
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, "Missing transformation (X) input. Connect a valid transformation tree, generated from the Aperiodic 4-Tile Component.");
             }
 
-            // TODO: Implement base mesh and brep generation for 2-tile system
+            // Get decomposition planes
+            Plane[][] decompositionPlanesA6 = GetA6DecompositionPlanes(scale);
+            Plane[][] decompositionPlanesB12 = GetB12DecompositionPlanes(scale);
+            //Plane[][] decompositionPlanesF20 = GetF20DecompositionPlanes(scale);
+            //Plane[][] decompositionPlanesK30 = GetK30DecompositionPlanes(scale);
+
+            // Generate data tree for output
+            DataTree<Plane> outputTransformations = new DataTree<Plane>();   
+            GH_Path pth0 = new GH_Path(0);
+            GH_Path pth1 = new GH_Path(1);
+            outputTransformations.EnsurePath(pth0);
+            outputTransformations.EnsurePath(pth1); 
+
+            // Work with 2D Array of planes
+            Plane[][] inputTransformationPlanes = ExtractPlaneArrays(transformations);
+
+            // Decompose A6 tiles and add to outputTransformations
+            foreach (Plane pl in inputTransformationPlanes[0])
+            {
+                foreach (Plane decompO6 in decompositionPlanesA6[0])
+                {
+                    Plane transformedO6 = decompO6;
+                    transformedO6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
+                    outputTransformations.Add(transformedO6, pth0);
+                }
+                foreach (Plane decompA6 in decompositionPlanesA6[1])
+                {
+                    Plane transformedA6 = decompA6;
+                    transformedA6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
+                    outputTransformations.Add(transformedA6, pth1);
+                }
+            }
+
+            // Decompose B12 tiles and add to outputTransformations
+            foreach (Plane pl in inputTransformationPlanes[1])
+            {
+                foreach (Plane decompO6 in decompositionPlanesB12[0])
+                {
+                    Plane transformedO6 = decompO6;
+                    transformedO6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
+                    outputTransformations.Add(transformedO6, pth0);
+                }
+                foreach (Plane decompA6 in decompositionPlanesB12[1])
+                {
+                    Plane transformedA6 = decompA6;
+                    transformedA6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
+                    outputTransformations.Add(transformedA6, pth1);
+                }
+            }
+
+            // Set Up for base mesh and brep generation for 2-tile system
             DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
             DataTree<Brep> baseBreps = new DataTree<Brep>();
 
@@ -93,7 +145,138 @@ namespace Aperiodic
 
             DA.SetDataTree(0, baseMeshes);
             DA.SetDataTree(1, baseBreps);
+            DA.SetDataTree(2, outputTransformations);
         }
+
+        #region ---Decomposition Plane Generation---
+
+        public static Plane[][] GetA6DecompositionPlanes(double scale)
+        {
+            Plane[][] planes = new Plane[2][];
+            planes[0] = new Plane[0];  // No O6 tiles in A6 decomposition
+            planes[1] = new Plane[1];  // One A6 tile
+            planes[1][0] = Plane.WorldXY;
+            return planes;
+        }
+
+        public static Plane[][] GetB12DecompositionPlanes(double scale)
+        {
+            // Set Up jagged array - must initialize sub-arrays
+            Plane[][] planes = new Plane[2][];
+            planes[0] = new Plane[2];  // 2 O6 tiles
+            planes[1] = new Plane[2];  // 2 A6 tiles
+
+            Mesh refB12 = GenerateMeshB12(scale);
+            BoundingBox bbox = refB12.GetBoundingBox(true);
+            double Xdist = bbox.Max.X;
+            double Ydist = bbox.Max.Y;
+            double Zdist = bbox.Max.Z;
+
+            // Get O6 Planes using 3 points, then mirroring across WorldYZ
+            int minYpointIndex = GetClosestVertex(refB12, new Point3d(0, -Ydist, 0));
+            Point3d minYpoint = refB12.TopologyVertices[minYpointIndex];
+            int topPointIndex = GetClosestVertex(refB12, new Point3d(Xdist, Ydist*0.5, 0));
+            Point3d topPoint = refB12.TopologyVertices[topPointIndex];
+            int xPointIndex = GetClosestVertex(refB12, new Point3d(Xdist, -Ydist * 0.5, 0));
+            Point3d xPoint = refB12.TopologyVertices[xPointIndex];
+            Plane plane0601 = PlaneFromRhombohedronCoordinates(minYpoint, topPoint, xPoint);
+            planes[0][0] = plane0601;
+            plane0601.Transform(Transform.Mirror(Plane.WorldYZ));
+            plane0601.Rotate(Math.PI, plane0601.Normal); // Rotate to match proper orientation
+            planes[0][1] = plane0601;
+
+            // Get A6 Planes using 3 points, then mirroring across WorldXY
+            int maxYpointIndex = GetClosestVertex(refB12, new Point3d(0, Ydist, 0));
+            Point3d maxYpoint = refB12.TopologyVertices[maxYpointIndex];
+            int bottomPointIndex = GetClosestVertex(refB12, new Point3d(0, -Ydist, -Zdist));
+            Point3d bottomPoint = refB12.TopologyVertices[bottomPointIndex];
+            xPointIndex = GetClosestVertex(refB12, new Point3d(Xdist, 0, -Zdist));
+            xPoint = refB12.TopologyVertices[xPointIndex];
+            Plane planeA601 = PlaneFromRhombohedronCoordinates(bottomPoint, maxYpoint, xPoint);
+            planes[1][0] = planeA601;
+            planeA601.Transform(Transform.Mirror(Plane.WorldXY));
+            planeA601.Rotate(Math.PI, planeA601.Normal); // Rotate to match proper orientation
+            planes[1][1] = planeA601;
+
+            return planes;
+        }
+
+        public static DataTree<Plane> GetF20DecompositionPlanes(double scale)
+        {
+            DataTree<Plane> planes = new DataTree<Plane>();
+            return planes;
+        }
+
+        public static DataTree<Plane> GetK30DecompositionPlanes(double scale)
+        {
+            DataTree<Plane> planes = new DataTree<Plane>();
+            return planes;
+        }
+
+        public static Plane PlaneFromRhombohedronCoordinates(Point3d bottom, Point3d top, Point3d xPoint)
+        {
+            Point3d origin = (bottom + top) * 0.5;
+            Vector3d normal = top - bottom;
+            Vector3d xAxis = xPoint - origin;
+            return PlaneFromNormalAndXAxis(origin, normal, xAxis);
+        }
+
+        public static Plane PlaneFromNormalAndXAxis(Point3d origin, Vector3d normal, Vector3d xAxis)
+        {
+            normal.Unitize();
+
+            // Compute Y-axis as cross product of normal (Z) and X
+            Vector3d yAxis = Vector3d.CrossProduct(normal, xAxis);
+            yAxis.Unitize();
+
+            // Recompute X to ensure orthogonality
+            xAxis = Vector3d.CrossProduct(yAxis, normal);
+            xAxis.Unitize();
+
+            return new Plane(origin, xAxis, yAxis);
+        }
+        public static int GetClosestVertex(Mesh mesh, Point3d reference)
+        {
+            int closestVertexIndex = 0;
+            Point3d currentVertex = new Point3d();
+            double minDistance = 1000000000;
+            for (int i = 0; i < mesh.TopologyVertices.Count; i++)
+            {
+                currentVertex = mesh.TopologyVertices[i];
+                double distance = currentVertex.DistanceTo(reference);
+                if (distance < minDistance)
+                {
+                    closestVertexIndex = i;
+                    minDistance = distance;
+                }
+            }
+            return closestVertexIndex;
+        }
+        private static Plane[][] ExtractPlaneArrays(GH_Structure<GH_Plane> ghStructure)
+        {
+            int branchCount = Math.Min(ghStructure.Branches.Count, 4);
+            var result = new Plane[4][];
+
+            for (int i = 0; i < 4; i++)
+            {
+                if (i < branchCount)
+                {
+                    var branch = ghStructure.Branches[i];
+                    result[i] = new Plane[branch.Count];
+                    for (int j = 0; j < branch.Count; j++)
+                    {
+                        result[i][j] = branch[j].Value;
+                    }
+                }
+                else
+                {
+                    result[i] = new Plane[0];
+                }
+            }
+            return result;
+        }
+
+        #endregion
 
         #region ---Zonohedra Generation---
 
@@ -161,6 +344,12 @@ namespace Aperiodic
             // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
             brepA6.Rotate(-Math.Acos(phi / Math.Sqrt(3)) - (Math.PI / 2), Vector3d.YAxis, Point3d.Origin);
             return brepA6;
+        }
+
+        public static Mesh GenerateMeshB12(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(4, false);
+            return GenerateZonohedronMeshFromStarVectors(starVectors, scale);
         }
 
         public static Mesh GenerateZonohedronMeshFromStarVectors(List<Vector3d> starVectors, double scale)
@@ -235,7 +424,7 @@ namespace Aperiodic
         public static List<Vector3d> GenerateStarVectors(int numZones, bool isO6)
         {
             // Golden ratio
-            double phi = (1 + Math.Sqrt(5)) / 2;
+            double phi = GoldenRatio;
 
             // Get all icosahedral star vectors
             List<Vector3d> allStarVectors = new List<Vector3d>
