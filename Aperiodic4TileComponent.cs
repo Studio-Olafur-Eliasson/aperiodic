@@ -43,7 +43,13 @@ namespace Aperiodic
             pManager.AddBooleanParameter("IncludeInterior", "includeInterior", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default false.", GH_ParamAccess.item, false);
             pManager.AddPlaneParameter("Center Plane", "centerPln", "Plane input for the center of the recursive tile-generation process. Default: World XY.", GH_ParamAccess.item, Plane.WorldXY);
             pManager.AddIntegerParameter("Iterations", "iterations", "Number of iterations of the recursive process. If iterations > 2, must use geometryFilter to avoid crashing. Set iterations = 0 to view the starting \"seed\" tiles of the recusive process. Default: 1", GH_ParamAccess.item, 1);
-            pManager.AddIntegerParameter("SeedOption", "seedOption", "Enter an integer option, 0, 1, or 2. According to Socolar and Steinhardt, who published the discovery of this 4-tile configuration in 1986, there exist exactly three packings with a single center of icosahedral point symmetry in 3D Euclidean space. These three options are each generated with one of the following \"seed\" tile configurations: 0 = a single rhombic triacontahedron tile (Default); 1 = a star of twenty rhombohedra, which, after deflation/inflation, are surrounded by rhombic triacontahedra; 2 = a star of twenty rhombohedra, with flipped orientations with respect to the previous option, so that they are surrounded by rhombic icosahedra on the next layer after deflation/inflation.", GH_ParamAccess.item);
+            pManager.AddIntegerParameter("SeedOption", "seedOption", "Enter an integer option, 0, 1, or 2. According to Socolar and Steinhardt, who published the discovery of this 4-tile configuration in 1986, there exist exactly three packings with a single center of icosahedral point symmetry in 3D Euclidean space. These three options are each generated with one of the following \"seed\" tile configurations: 0 = a single rhombic triacontahedron tile (Default); 1 = a star of twenty rhombohedra, which, after deflation/inflation, are surrounded by rhombic triacontahedra; 2 = a star of twenty rhombohedra, with flipped orientations with respect to the previous option, so that they are surrounded by rhombic icosahedra on the next layer after deflation/inflation.", GH_ParamAccess.item, 0);
+            pManager[0].Optional = true;
+            pManager[1].Optional = true;
+            pManager[2].Optional = true;
+            pManager[3].Optional = true;
+            pManager[4].Optional = true;
+            pManager[5].Optional = true;
         }
 
         /// <summary>
@@ -53,7 +59,7 @@ namespace Aperiodic
         {
             pManager.AddMeshParameter("Base Meshes", "baseMeshes", "Set of base mesh geometry of the four zonohedral tiles. Apply the output transformations to view tiling result.", GH_ParamAccess.tree);
             pManager.AddBrepParameter("Base Breps", "baseBreps", "Set of base brep geometry of the four zonohedral tiles. Apply the output transformations to view tiling result.", GH_ParamAccess.tree);
-            pManager.AddPlaneParameter("Transformations", "X", "Result of recursive process: a data tree of planes representing the positions and orientations of the generated tiles.", GH_ParamAccess.tree);
+            pManager.AddPlaneParameter("Transformations", "X", "Result of the recursive process. Apply these output transformations to the baseMeshes, baseBreps, or other substitute geometry. The tree structure contains a separate branch for each of the four tile types: {0} = rhombohedron; {1} = rhombic (Bilinski) dodecahedron; {2} = rhombic icosahedron; {3} = rhombic triacontahedron. The Default output values correspond to 1 iteration of the deflation using seed option 0 (beginning with a rhombic triacontahedron) and no geometryFilter.", GH_ParamAccess.tree);
         }
 
         /// <summary>
@@ -73,12 +79,12 @@ namespace Aperiodic
             double scale = 1.0;
 
             // Retrieve data from input parameters
-            if (!DA.GetData(0, ref geometryFilter)) { return; }
-            if (!DA.GetData(1, ref filterDistance)) { return; }
-            if (!DA.GetData(2, ref includeInterior)) { return; }
-            if (!DA.GetData(3, ref centerpln)) { return; }
-            if (!DA.GetData(4, ref iterations)) { return; }
-            if (!DA.GetData(5, ref seed)) { return; }
+            DA.GetData(0, ref geometryFilter);
+            DA.GetData(1, ref filterDistance);
+            DA.GetData(2, ref includeInterior);
+            DA.GetData(3, ref centerpln);
+            DA.GetData(4, ref iterations);
+            DA.GetData(5, ref seed);
 
             List<GeometryBase> gfa = null;
             List<GeometryBase> gfaCopy = null;
@@ -153,6 +159,7 @@ namespace Aperiodic
             deflationRules[2] = ExtractPlaneArrays(generatedF20plns);
             deflationRules[3] = ExtractPlaneArrays(generatedK30plns);
 
+            // Perform recursive inflation/deflation process to get output planes for transformations
             DataTree<Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, deflationRules);
 
             // Generate Base Breps
@@ -161,7 +168,12 @@ namespace Aperiodic
             Brep brepB12 = GenerateBrepB12(scale);
             Brep brepF20 = GenerateBrepF20(scale);
             Brep brepK30 = GenerateBrepK30(scale);
+            baseBreps.Add(brepA6, new GH_Path(0));
+            baseBreps.Add(brepB12, new GH_Path(1));
+            baseBreps.Add(brepF20, new GH_Path(2));
+            baseBreps.Add(brepK30, new GH_Path(3));
 
+            // Set output parameter data
             DA.SetDataTree(0, baseMeshes);
             DA.SetDataTree(1, baseBreps);
             DA.SetDataTree(2, outputplns);
