@@ -5,6 +5,7 @@ using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace Aperiodic
 {
@@ -34,7 +35,7 @@ namespace Aperiodic
         {
             pManager.AddGeometryParameter("Geometry Filter", "geometryFilter", "(Optional) Input a geometry filter (Brep or Curve) to define the output shape of the tiling. This acts as a secondary filtering operation after 4-tile component filtering.", GH_ParamAccess.item);
             pManager.AddNumberParameter("Filter Distance", "filterDistance", "Distance from the geometryFilter within which tiles should be included in the output.", GH_ParamAccess.item, 1.0);
-            pManager.AddBooleanParameter("IncludeInterior", "includeInterior", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default false. Note: interior may already be filtered out from the 4-tile component.", GH_ParamAccess.item, false);
+            pManager.AddBooleanParameter("IncludeInterior", "includeInterior", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default true. Note: interior may already be filtered out from the 4-tile component.", GH_ParamAccess.item, true);
             pManager.AddPlaneParameter("Transformations", "X", "(Required) The output transformations generated from the Aperiodic 4-Tile component. The tree structure contains a separate branch for each of the four tile types: {0} = rhombohedron; {1} = rhombic (Bilinski) dodecahedron; {2} = rhombic icosahedron; {3} = rhombic triacontahedron.", GH_ParamAccess.tree);
             pManager[0].Optional = true;
             pManager[1].Optional = true;
@@ -80,7 +81,7 @@ namespace Aperiodic
             // Get decomposition planes
             Plane[][] decompositionPlanesA6 = GetA6DecompositionPlanes(scale);
             Plane[][] decompositionPlanesB12 = GetB12DecompositionPlanes(scale);
-            //Plane[][] decompositionPlanesF20 = GetF20DecompositionPlanes(scale);
+            Plane[][] decompositionPlanesF20 = GetF20DecompositionPlanes(scale);
             //Plane[][] decompositionPlanesK30 = GetK30DecompositionPlanes(scale);
 
             // Generate data tree for output
@@ -130,6 +131,29 @@ namespace Aperiodic
                     }
                 }
                 foreach (Plane decompA6 in decompositionPlanesB12[1])
+                {
+                    Plane transformedA6 = decompA6;
+                    transformedA6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
+                    if (CheckGeometryFilter(geometryFilter, transformedA6, filterDistance, includeInterior))
+                    {
+                        outputTransformations.Add(transformedA6, pth1);
+                    }
+                }
+            }
+
+            // Decompose F20 tiles and add to outputTransformations
+            foreach (Plane pl in inputTransformationPlanes[2])
+            {
+                foreach (Plane decompO6 in decompositionPlanesF20[0])
+                {
+                    Plane transformedO6 = decompO6;
+                    transformedO6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
+                    if (CheckGeometryFilter(geometryFilter, transformedO6, filterDistance, includeInterior))
+                    {
+                        outputTransformations.Add(transformedO6, pth0);
+                    }
+                }
+                foreach (Plane decompA6 in decompositionPlanesF20[1])
                 {
                     Plane transformedA6 = decompA6;
                     transformedA6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
@@ -254,9 +278,64 @@ namespace Aperiodic
             return planes;
         }
 
-        public static DataTree<Plane> GetF20DecompositionPlanes(double scale)
+        public static Plane[][] GetF20DecompositionPlanes(double scale)
         {
-            DataTree<Plane> planes = new DataTree<Plane>();
+            Plane[][] planes = new Plane[2][];
+            planes[0] = new Plane[5];  // 5 O6 tiles in F20 decomposition
+            planes[1] = new Plane[5];  // 5 A6 tiles in F20 decomposition
+
+            Mesh refF20 = GenerateMeshF20(scale);
+            BoundingBox bbox = refF20.GetBoundingBox(true);
+            double Xdist = bbox.Max.X;
+            double Ydist = bbox.Max.Y;
+            double Zdist = bbox.Max.Z;
+
+            // Get some vertices of the F20
+            // Start with the top vertex
+            int maxZpointIndex = GetClosestVertex(refF20, new Point3d(0, 0, Zdist));
+            Point3d maxZpoint = refF20.TopologyVertices[maxZpointIndex];
+            int minZpointIndex = GetClosestVertex(refF20, new Point3d(0, 0, -Zdist));
+            Point3d minZpoint = refF20.TopologyVertices[minZpointIndex];
+            int maxXpointIndex = GetClosestVertex(refF20, new Point3d(Xdist, 0, 0));
+            Point3d maxXpoint = refF20.TopologyVertices[maxXpointIndex];
+            int minXpointIndex = GetClosestVertex(refF20, new Point3d(-Xdist, 0, 0));
+            Point3d minXpoint = refF20.TopologyVertices[minXpointIndex];
+
+            // Get adjacent vertices to top vertex - gives some vectors we can use to find different points
+            int[] adjacentVertexIndices = refF20.Vertices.GetConnectedVertices(maxZpointIndex);
+            Point3d e0 = new Point3d(0,0,0);
+            for (int j = 0; j < 5; j++)
+            {
+                Point3d edgePt = (Point3d)refF20.Vertices[adjacentVertexIndices[j]];
+                if (edgePt.X > e0.X)
+                {
+                    e0 = edgePt;
+                }
+            }
+            Vector3d v0 = e0 - maxZpoint;
+            Vector3d v1 = v0;
+            v1.Rotate(Math.PI * 2 / 5, Vector3d.ZAxis);
+            Vector3d v2 = v1;
+            v2.Rotate(Math.PI * 2 / 5, Vector3d.ZAxis);
+            Vector3d v3 = v2;
+            v3.Rotate(Math.PI * 2 / 5, Vector3d.ZAxis);
+            Vector3d v4 = v3;
+            v4.Rotate(Math.PI * 2 / 5, Vector3d.ZAxis);
+
+            // Get O6 Planes using 3 points
+            planes[0][0] = PlaneFromRhombohedronCoordinates(maxZpoint, maxZpoint + v0 + v1 + v2, maxZpoint + v1);
+            planes[0][1] = PlaneFromRhombohedronCoordinates(maxZpoint, maxZpoint + v0 + v4 + v3, maxZpoint + v4);
+            planes[0][2] = PlaneFromRhombohedronCoordinates(minZpoint, maxZpoint + v0 + v1, minZpoint - v3);
+            planes[0][3] = PlaneFromRhombohedronCoordinates(minZpoint, maxZpoint + v2 + v3, minZpoint - v0);
+            planes[0][4] = PlaneFromRhombohedronCoordinates(maxZpoint + v0, minZpoint - v4, maxZpoint + v0 + v2);
+
+            // Get A6 Planes using 3 points
+            planes[1][0] = PlaneFromRhombohedronCoordinates(maxZpoint + v0, minXpoint, maxZpoint);
+            planes[1][1] = PlaneFromRhombohedronCoordinates(minXpoint, maxZpoint + v0 + v1 + v2, maxZpoint + v2);
+            planes[1][2] = PlaneFromRhombohedronCoordinates(minXpoint, maxZpoint + v0 + v4 + v3, maxZpoint + v3);
+            planes[1][3] = PlaneFromRhombohedronCoordinates(maxZpoint + v0 + v4 + v3, maxZpoint + v0 + v1, minZpoint - v2);
+            planes[1][4] = PlaneFromRhombohedronCoordinates(minZpoint - v4, minZpoint -v1 - v2, minZpoint);
+
             return planes;
         }
 
@@ -402,6 +481,20 @@ namespace Aperiodic
         public static Mesh GenerateMeshB12(double scale)
         {
             List<Vector3d> starVectors = GenerateStarVectors(4, false);
+            return GenerateZonohedronMeshFromStarVectors(starVectors, scale);
+        }
+
+        public static Mesh GenerateMeshF20(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(5, false);
+            Mesh meshF20 = GenerateZonohedronMeshFromStarVectors(starVectors, scale);
+            meshF20.Rotate(Math.PI, Vector3d.ZAxis, Point3d.Origin);
+            meshF20.Rotate(Math.Asin(Math.Sqrt((5 + Math.Sqrt(5)) / 10)), Vector3d.YAxis, Point3d.Origin);
+            return meshF20;
+        }
+        public static Mesh GenerateMeshK30(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(6, false);
             return GenerateZonohedronMeshFromStarVectors(starVectors, scale);
         }
 
