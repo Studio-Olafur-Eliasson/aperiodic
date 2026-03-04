@@ -28,6 +28,16 @@
   </Target>
   
   <ItemGroup>
+    <Compile Remove="DeflationRuleA6.cs" />
+    <Compile Remove="DeflationRuleB12.cs" />
+    <Compile Remove="DeflationRuleF20.cs" />
+    <Compile Remove="DeflationRuleK30.cs" />
+    <Compile Remove="GoldenZonohedra.cs" />
+    <Compile Remove="RecursiveDeflation.cs" />
+    <Compile Remove="SeedOptions.cs" />
+  </ItemGroup>
+  
+  <ItemGroup>
     <PackageReference Include="Grasshopper" Version="8.21.25188.17001" ExcludeAssets="runtime" />
   </ItemGroup>
   

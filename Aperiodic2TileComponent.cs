@@ -35,7 +35,7 @@ namespace Aperiodic
         {
             pManager.AddGeometryParameter("Geometry Filter", "geometryFilter", "(Optional) Input a geometry filter (Brep or Curve) to define the output shape of the tiling. This acts as a secondary filtering operation after 4-tile component filtering.", GH_ParamAccess.item);
             pManager.AddNumberParameter("Filter Distance", "filterDistance", "Distance from the geometryFilter within which tiles should be included in the output.", GH_ParamAccess.item, 1.0);
-            pManager.AddBooleanParameter("IncludeInterior", "includeInterior", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default true. Note: interior may already be filtered out from the 4-tile component.", GH_ParamAccess.item, true);
+            pManager.AddBooleanParameter("Include Interior", "includeInterior", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default true. Note: interior may already be filtered out from the 4-tile component.", GH_ParamAccess.item, true);
             pManager.AddPlaneParameter("Transformations", "X", "(Required) The output transformations generated from the Aperiodic 4-Tile component. The tree structure contains a separate branch for each of the four tile types: {0} = rhombohedron; {1} = rhombic (Bilinski) dodecahedron; {2} = rhombic icosahedron; {3} = rhombic triacontahedron.", GH_ParamAccess.tree);
             pManager[0].Optional = true;
             pManager[1].Optional = true;
@@ -1035,6 +1035,18 @@ namespace Aperiodic
             return brep;
         }
 
+        #endregion
+
+        #region ---Preview---
+        public override void DrawViewportWires(IGH_PreviewArgs args)
+        {
+            // No wireframe preview
+        }
+
+        public override void DrawViewportMeshes(IGH_PreviewArgs args)
+        {
+            // No mesh preview
+        }
         #endregion
 
         /// <summary>
