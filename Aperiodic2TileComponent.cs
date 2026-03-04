@@ -82,7 +82,7 @@ namespace Aperiodic
             Plane[][] decompositionPlanesA6 = GetA6DecompositionPlanes(scale);
             Plane[][] decompositionPlanesB12 = GetB12DecompositionPlanes(scale);
             Plane[][] decompositionPlanesF20 = GetF20DecompositionPlanes(scale);
-            //Plane[][] decompositionPlanesK30 = GetK30DecompositionPlanes(scale);
+            Plane[][] decompositionPlanesK30 = GetK30DecompositionPlanes(scale);
 
             // Generate data tree for output
             DataTree<Plane> outputTransformations = new DataTree<Plane>();   
@@ -164,6 +164,29 @@ namespace Aperiodic
                 }
             }
 
+            // Decompose K30 tiles and add to outputTransformations
+            foreach (Plane pl in inputTransformationPlanes[3])
+            {
+                foreach (Plane decompO6 in decompositionPlanesK30[0])
+                {
+                    Plane transformedO6 = decompO6;
+                    transformedO6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
+                    if (CheckGeometryFilter(geometryFilter, transformedO6, filterDistance, includeInterior))
+                    {
+                        outputTransformations.Add(transformedO6, pth0);
+                    }
+                }
+                foreach (Plane decompA6 in decompositionPlanesK30[1])
+                {
+                    Plane transformedA6 = decompA6;
+                    transformedA6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
+                    if (CheckGeometryFilter(geometryFilter, transformedA6, filterDistance, includeInterior))
+                    {
+                        outputTransformations.Add(transformedA6, pth1);
+                    }
+                }
+            }
+
             // Set Up for base mesh and brep generation for 2-tile system
             DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
             DataTree<Brep> baseBreps = new DataTree<Brep>();
@@ -207,8 +230,13 @@ namespace Aperiodic
                 }
                 // For non-solid Breps or if not including interior, or for remaining tiles
                 // Check if tile is within filter distance of the Brep surface
-                double closestDist = brepFilter.ClosestPoint(tilePoint).DistanceTo(tilePoint);
-                if (closestDist <= filterDistance)
+                Point3d closestPoint;
+                ComponentIndex ci;
+                double s, t;
+                Vector3d normal;
+                brepFilter.ClosestPoint(tilePoint, out closestPoint, out ci, out s, out t, filterDistance, out normal);
+                double closestDist = closestPoint.DistanceTo(tilePoint);
+                if (closestDist > 0 && closestDist <= filterDistance)
                 {
                     return true; // Tile is within distance of the filter
                 }
@@ -224,6 +252,84 @@ namespace Aperiodic
             }
             else return true; // TODO: Implement filter for other geometry types (mesh, point, etc)
         }
+
+        /// <summary>
+        /// Optimized batch filter check with bounding box pre-filtering
+        /// </summary>
+        public static List<Plane> FilterPlanesBatch(GeometryBase geometryFilter, List<Plane> planes, double filterDistance, bool includeInterior)
+        {
+            if (geometryFilter == null) return planes; // No filter, return all
+
+            var result = new List<Plane>(planes.Count);
+
+            // Pre-compute bounding box for fast rejection
+            BoundingBox filterBBox = geometryFilter.GetBoundingBox(false);
+            filterBBox.Inflate(filterDistance);
+
+            // Pre-convert brep once if applicable
+            Brep brepFilter = null;
+            Curve crvFilter = null;
+            bool isBrep = geometryFilter.HasBrepForm;
+            bool isCurve = geometryFilter is Curve;
+
+            if (isBrep)
+            {
+                brepFilter = Brep.TryConvertBrep(geometryFilter);
+            }
+            else if (isCurve)
+            {
+                crvFilter = geometryFilter as Curve;
+            }
+
+            foreach (var plane in planes)
+            {
+                Point3d tilePoint = plane.Origin;
+
+                // Fast bounding box rejection
+                if (!filterBBox.Contains(tilePoint))
+                {
+                    continue;
+                }
+
+                if (isBrep && brepFilter != null)
+                {
+                    if (includeInterior && brepFilter.IsSolid)
+                    {
+                        if (brepFilter.IsPointInside(tilePoint, 0.01, true))
+                        {
+                            result.Add(plane);
+                            continue;
+                        }
+                    }
+
+                    Point3d closestPoint;
+                    ComponentIndex ci;
+                    double s, t;
+                    Vector3d normal;
+                    brepFilter.ClosestPoint(tilePoint, out closestPoint, out ci, out s, out t, filterDistance, out normal);
+                    double dist = closestPoint.DistanceTo(tilePoint);
+                    if (dist > 0 && dist <= filterDistance)
+                    {
+                        result.Add(plane);
+                    }
+                }
+                else if (isCurve && crvFilter != null)
+                {
+                    double t;
+                    if (crvFilter.ClosestPoint(tilePoint, out t, filterDistance))
+                    {
+                        result.Add(plane);
+                    }
+                }
+                else
+                {
+                    result.Add(plane); // Unknown geometry type, include by default
+                }
+            }
+
+            return result;
+        }
+
 
         #region ---Decomposition Plane Generation---
 
@@ -339,9 +445,106 @@ namespace Aperiodic
             return planes;
         }
 
-        public static DataTree<Plane> GetK30DecompositionPlanes(double scale)
+        public static Plane[][] GetK30DecompositionPlanes(double scale)
         {
-            DataTree<Plane> planes = new DataTree<Plane>();
+            Plane[][] planes = new Plane[2][];
+            planes[0] = new Plane[10];  // 5 O6 tiles in K30 decomposition
+            planes[1] = new Plane[10];  // 5 A6 tiles in K30 decomposition
+
+            Mesh refK30 = GenerateMeshK30(scale);
+            BoundingBox bbox = refK30.GetBoundingBox(true);
+            double Xdist = bbox.Max.X;
+            double Ydist = bbox.Max.Y;
+            double Zdist = bbox.Max.Z;
+
+            // Get some vertices of the K30
+            // Start with the top face
+            refK30.FaceNormals.ComputeFaceNormals();
+            int closeFaceIndex = GetClosestFace(refK30, new Point3d(0, 0, Zdist));
+            int[] topFaceVertices = new int[4];
+            topFaceVertices[0] = refK30.Faces[closeFaceIndex].A;
+            topFaceVertices[1] = refK30.Faces[closeFaceIndex].B;
+            topFaceVertices[2] = refK30.Faces[closeFaceIndex].C;
+            topFaceVertices[3] = refK30.Faces[closeFaceIndex].D;
+
+            // Get vertices above and below XZ plane
+            int topFacePositiveYIndex = -1;
+            int topFaceNegativeYIndex = -1;
+            for (int i = 0; i < 4; i++)
+            {
+                if (refK30.TopologyVertices[topFaceVertices[i]].Y > 0.0001)
+                {
+                    topFacePositiveYIndex = topFaceVertices[i];
+                }
+                else if (refK30.TopologyVertices[topFaceVertices[i]].Y < -0.0001)
+                {
+                    topFaceNegativeYIndex = topFaceVertices[i];
+                }
+            }
+            Point3d topFacePositiveY = refK30.TopologyVertices[topFacePositiveYIndex];
+            Point3d topFaceNegativeY = refK30.TopologyVertices[topFaceNegativeYIndex];
+            Point3d bottomFacePositiveY = new Point3d(topFacePositiveY.X, topFacePositiveY.Y, -topFacePositiveY.Z);
+            Point3d bottomFaceNegativeY = new Point3d(topFaceNegativeY.X, topFaceNegativeY.Y, -topFaceNegativeY.Z);
+
+            // Get adjacent vertices and vector from topFaceNegativeY - gives some vectors we can use to find different points
+            int[] adjacentVertexIndices = refK30.Vertices.GetConnectedVertices(topFaceNegativeYIndex);
+            Point3d e0 = new Point3d(0, 0, 0);
+            for (int j = 0; j < 5; j++)
+            {
+                Point3d edgePt = (Point3d)refK30.Vertices[adjacentVertexIndices[j]];
+                if (edgePt.Y < topFaceNegativeY.Y)
+                {
+                    e0 = edgePt;
+                }
+            }
+
+            // Get adjacent vertices and vector from topFacePositiveY - get last direction
+            adjacentVertexIndices = refK30.Vertices.GetConnectedVertices(topFacePositiveYIndex);
+            Point3d e5 = new Point3d(0, 0, 0);
+            for (int j = 0; j < 5; j++)
+            {
+                Point3d edgePt = (Point3d)refK30.Vertices[adjacentVertexIndices[j]];
+                if (edgePt.Y > topFacePositiveY.Y)
+                {
+                    e5 = edgePt;
+                }
+            }
+            Vector3d v5 = topFacePositiveY - e5;
+            Vector3d v0 = e0 - topFaceNegativeY;
+            Vector3d v1 = v0;
+            v1.Rotate(Math.PI * 2 / 5, v5);
+            Vector3d v2 = v1;
+            v2.Rotate(Math.PI * 2 / 5, v5);
+            Vector3d v3 = v2;
+            v3.Rotate(Math.PI * 2 / 5, v5);
+            Vector3d v4 = v3;
+            v4.Rotate(Math.PI * 2 / 5, v5);
+
+            // Note - there is probably a cleaner way to do this but for now this works
+            // Get O6 Planes using 3 points
+            planes[0][0] = PlaneFromRhombohedronCoordinates(topFaceNegativeY, topFacePositiveY + v1, topFaceNegativeY + v2);
+            planes[0][1] = PlaneFromRhombohedronCoordinates(topFaceNegativeY, topFaceNegativeY + v0 + v4 + v3, topFaceNegativeY + v4);
+            planes[0][2] = PlaneFromRhombohedronCoordinates(topFacePositiveY, topFacePositiveY + v1 - v5 + v4, topFacePositiveY - v5);
+            planes[0][3] = PlaneFromRhombohedronCoordinates(bottomFacePositiveY, bottomFacePositiveY - v0 - v2 - v1, bottomFacePositiveY - v1);
+            planes[0][4] = PlaneFromRhombohedronCoordinates(bottomFacePositiveY, bottomFacePositiveY - v0 + v5 - v2, bottomFacePositiveY + v5);
+            planes[0][5] = PlaneFromRhombohedronCoordinates(bottomFacePositiveY, bottomFacePositiveY - v4 + v5 - v2, bottomFacePositiveY + v5);
+            planes[0][6] = PlaneFromRhombohedronCoordinates(topFaceNegativeY + v3, bottomFaceNegativeY + v3 + v5, topFaceNegativeY + v3 + v0);
+            planes[0][7] = PlaneFromRhombohedronCoordinates(bottomFacePositiveY - v4,topFaceNegativeY + v1 + v2 ,bottomFacePositiveY - v4 + v5);
+            planes[0][8] = PlaneFromRhombohedronCoordinates(bottomFaceNegativeY + v3, bottomFaceNegativeY + v2 - v4, bottomFaceNegativeY + v3 - v4);
+            planes[0][9] = PlaneFromRhombohedronCoordinates(bottomFaceNegativeY, bottomFaceNegativeY - v1 + v5 + v3, bottomFaceNegativeY - v1);
+
+            // Get A6 Planes using 3 points
+            planes[1][0] = PlaneFromRhombohedronCoordinates(bottomFacePositiveY - v0, topFacePositiveY + v4 - v2, bottomFacePositiveY - v0 - v1);
+            planes[1][1] = PlaneFromRhombohedronCoordinates(bottomFaceNegativeY + v3, topFacePositiveY + v4 - v2, bottomFaceNegativeY + v3 + v5);
+            planes[1][2] = PlaneFromRhombohedronCoordinates(topFaceNegativeY + v3 + v4, topFacePositiveY + v1, topFaceNegativeY + v3);
+            planes[1][3] = PlaneFromRhombohedronCoordinates(topFacePositiveY + v1, bottomFaceNegativeY + v3 + v5, topFacePositiveY + v1 - v2);
+            planes[1][4] = PlaneFromRhombohedronCoordinates(bottomFacePositiveY, topFacePositiveY + v1, bottomFacePositiveY + v5);
+            planes[1][5] = PlaneFromRhombohedronCoordinates(topFaceNegativeY + v0 + v1, topFacePositiveY + v1, topFaceNegativeY + v0 + v1 + v3);
+            planes[1][6] = PlaneFromRhombohedronCoordinates(topFaceNegativeY + v0 + v1, bottomFacePositiveY - v4, topFaceNegativeY + v0 + v1 + v3);
+            planes[1][7] = PlaneFromRhombohedronCoordinates(topFaceNegativeY + v0 + v1, bottomFaceNegativeY + v3, topFaceNegativeY + v0 + v1 + v3);
+            planes[1][8] = PlaneFromRhombohedronCoordinates(topFaceNegativeY + v0 + v1, topFaceNegativeY + v0 + v3 + v4, topFaceNegativeY + v0 + v1 + v3);
+            planes[1][9] = PlaneFromRhombohedronCoordinates(topFaceNegativeY + v0 + v1, topFaceNegativeY + v3, topFaceNegativeY + v0 + v1 + v3);
+
             return planes;
         }
 
@@ -383,6 +586,24 @@ namespace Aperiodic
                 }
             }
             return closestVertexIndex;
+        }
+
+        public static int GetClosestFace(Mesh mesh, Point3d reference)
+        {
+            int closestFaceIndex = 0;
+            Point3d currentFaceCenter = new Point3d();
+            double minDistance = 1000000;
+            for (int i = 0; i < mesh.Faces.Count; i++)
+            {
+                currentFaceCenter = mesh.Faces.GetFaceCenter(i);
+                double distance = currentFaceCenter.DistanceTo(reference);
+                if (distance < minDistance)
+                {
+                    closestFaceIndex = i;
+                    minDistance = distance;
+                }
+            }
+            return closestFaceIndex;
         }
         private static Plane[][] ExtractPlaneArrays(GH_Structure<GH_Plane> ghStructure)
         {
