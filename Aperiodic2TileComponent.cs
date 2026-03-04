@@ -84,108 +84,95 @@ namespace Aperiodic
             Plane[][] decompositionPlanesF20 = GetF20DecompositionPlanes(scale);
             Plane[][] decompositionPlanesK30 = GetK30DecompositionPlanes(scale);
 
-            // Generate data tree for output
-            DataTree<Plane> outputTransformations = new DataTree<Plane>();   
-            GH_Path pth0 = new GH_Path(0);
-            GH_Path pth1 = new GH_Path(1);
-            outputTransformations.EnsurePath(pth0);
-            outputTransformations.EnsurePath(pth1); 
+            // Collect all transformed planes first, then filter in batch
+            var allO6Planes = new List<Plane>();
+            var allA6Planes = new List<Plane>();
 
             // Work with 2D Array of planes
             Plane[][] inputTransformationPlanes = ExtractPlaneArrays(transformations);
 
-            // Decompose A6 tiles and add to outputTransformations
+            // Decompose A6 tiles
             foreach (Plane pl in inputTransformationPlanes[0])
             {
+                Transform xform = Transform.PlaneToPlane(Plane.WorldXY, pl);
                 foreach (Plane decompO6 in decompositionPlanesA6[0])
                 {
                     Plane transformedO6 = decompO6;
-                    transformedO6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
-                    if (CheckGeometryFilter(geometryFilter, transformedO6, filterDistance, includeInterior))
-                    {
-                        outputTransformations.Add(transformedO6, pth0);
-                    }
-                    
+                    transformedO6.Transform(xform);
+                    allO6Planes.Add(transformedO6);
                 }
                 foreach (Plane decompA6 in decompositionPlanesA6[1])
                 {
                     Plane transformedA6 = decompA6;
-                    transformedA6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
-                    if (CheckGeometryFilter(geometryFilter, transformedA6, filterDistance, includeInterior))
-                    {
-                        outputTransformations.Add(transformedA6, pth1);
-                    }
+                    transformedA6.Transform(xform);
+                    allA6Planes.Add(transformedA6);
                 }
             }
 
-            // Decompose B12 tiles and add to outputTransformations
+            // Decompose B12 tiles
             foreach (Plane pl in inputTransformationPlanes[1])
             {
+                Transform xform = Transform.PlaneToPlane(Plane.WorldXY, pl);
                 foreach (Plane decompO6 in decompositionPlanesB12[0])
                 {
                     Plane transformedO6 = decompO6;
-                    transformedO6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
-                    if (CheckGeometryFilter(geometryFilter, transformedO6, filterDistance, includeInterior))
-                    {
-                        outputTransformations.Add(transformedO6, pth0);
-                    }
+                    transformedO6.Transform(xform);
+                    allO6Planes.Add(transformedO6);
                 }
                 foreach (Plane decompA6 in decompositionPlanesB12[1])
                 {
                     Plane transformedA6 = decompA6;
-                    transformedA6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
-                    if (CheckGeometryFilter(geometryFilter, transformedA6, filterDistance, includeInterior))
-                    {
-                        outputTransformations.Add(transformedA6, pth1);
-                    }
+                    transformedA6.Transform(xform);
+                    allA6Planes.Add(transformedA6);
                 }
             }
 
-            // Decompose F20 tiles and add to outputTransformations
+            // Decompose F20 tiles
             foreach (Plane pl in inputTransformationPlanes[2])
             {
+                Transform xform = Transform.PlaneToPlane(Plane.WorldXY, pl);
                 foreach (Plane decompO6 in decompositionPlanesF20[0])
                 {
                     Plane transformedO6 = decompO6;
-                    transformedO6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
-                    if (CheckGeometryFilter(geometryFilter, transformedO6, filterDistance, includeInterior))
-                    {
-                        outputTransformations.Add(transformedO6, pth0);
-                    }
+                    transformedO6.Transform(xform);
+                    allO6Planes.Add(transformedO6);
                 }
                 foreach (Plane decompA6 in decompositionPlanesF20[1])
                 {
                     Plane transformedA6 = decompA6;
-                    transformedA6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
-                    if (CheckGeometryFilter(geometryFilter, transformedA6, filterDistance, includeInterior))
-                    {
-                        outputTransformations.Add(transformedA6, pth1);
-                    }
+                    transformedA6.Transform(xform);
+                    allA6Planes.Add(transformedA6);
                 }
             }
 
-            // Decompose K30 tiles and add to outputTransformations
+            // Decompose K30 tiles
             foreach (Plane pl in inputTransformationPlanes[3])
             {
+                Transform xform = Transform.PlaneToPlane(Plane.WorldXY, pl);
                 foreach (Plane decompO6 in decompositionPlanesK30[0])
                 {
                     Plane transformedO6 = decompO6;
-                    transformedO6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
-                    if (CheckGeometryFilter(geometryFilter, transformedO6, filterDistance, includeInterior))
-                    {
-                        outputTransformations.Add(transformedO6, pth0);
-                    }
+                    transformedO6.Transform(xform);
+                    allO6Planes.Add(transformedO6);
                 }
                 foreach (Plane decompA6 in decompositionPlanesK30[1])
                 {
                     Plane transformedA6 = decompA6;
-                    transformedA6.Transform(Transform.PlaneToPlane(Plane.WorldXY, pl));
-                    if (CheckGeometryFilter(geometryFilter, transformedA6, filterDistance, includeInterior))
-                    {
-                        outputTransformations.Add(transformedA6, pth1);
-                    }
+                    transformedA6.Transform(xform);
+                    allA6Planes.Add(transformedA6);
                 }
             }
+
+            // Apply batch filtering (much faster - single bounding box computation, single brep conversion)
+            List<Plane> filteredO6Planes = FilterPlanesBatch(geometryFilter, allO6Planes, filterDistance, includeInterior);
+            List<Plane> filteredA6Planes = FilterPlanesBatch(geometryFilter, allA6Planes, filterDistance, includeInterior);
+
+            // Build output tree using AddRange (faster than individual Add calls)
+            DataTree<Plane> outputTransformations = new DataTree<Plane>();
+            GH_Path pth0 = new GH_Path(0);
+            GH_Path pth1 = new GH_Path(1);
+            outputTransformations.AddRange(filteredO6Planes, pth0);
+            outputTransformations.AddRange(filteredA6Planes, pth1);
 
             // Set Up for base mesh and brep generation for 2-tile system
             DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
