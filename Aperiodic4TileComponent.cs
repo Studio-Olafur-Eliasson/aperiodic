@@ -5474,6 +5474,8 @@ namespace Aperiodic
         /// </summary>
         protected override System.Drawing.Bitmap Icon => Resources.aperiodic4tile24px;
 
+        public override GH_Exposure Exposure => GH_Exposure.primary;
+
         /// <summary>
         /// Each component must have a unique Guid to identify it. 
         /// It is vital this Guid doesn't change otherwise old ghx files 
