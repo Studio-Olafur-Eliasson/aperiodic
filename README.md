@@ -55,7 +55,9 @@ https://gallery.bridgesmathart.org/exhibitions/2023-bridges-conference-short-fil
 ## Team
 
 Claire Djang - software design and implementation
+
 Stefano Arrighi - research collaboration
+
 Developed at Studio Olafur Eliasson (Advanced Geometries)
 
 ## License
