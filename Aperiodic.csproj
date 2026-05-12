@@ -7,7 +7,7 @@
         Rhino 8 Windows: net48, net7.0, net7.0-windows, net7.0-windows10.0.22000.0, etc
         Rhino 8 Mac: net7.0, net7.0-macos, net7.0-macos12.0, etc
     -->
-    <TargetFrameworks>net48;net8.0</TargetFrameworks>
+    <TargetFrameworks>net8.0</TargetFrameworks>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <TargetExt>.gha</TargetExt>
     <NoWarn>NU1701</NoWarn>
@@ -16,10 +16,10 @@
   
   <PropertyGroup>
     <!-- Specifies information for Assembly and Yak -->
-    <Version>1.0</Version>
+    <Version>1.0.0</Version>
     <Title>Aperiodic</Title>
-    <Company>Aperiodic Authors</Company>
-    <Description>Description of Aperiodic</Description>
+    <Company>Studio Olafur Eliasson</Company>
+    <Description>A plugin for generating three-dimensional aperiodic space-filling structures.</Description>
   </PropertyGroup>
   
   <Target Name="CopyToGH" AfterTargets="Build">

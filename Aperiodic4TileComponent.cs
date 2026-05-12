@@ -1,7 +1,6 @@
 using Grasshopper;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
-using Grasshopper.Kernel.Types;
 using Rhino;
 using Rhino.Geometry;
 using System;
@@ -28,7 +27,7 @@ namespace Aperiodic
         /// </summary>
         public Aperiodic4TileComponent()
           : base("Aperiodic 4-Tile", "4-Tile",
-            "Generate aperiodic 4-tile transformations (v1.0)",
+            "Generate aperiodic 4-tile transformations (v1.0.0)",
             "Aperiodic", "Aperiodic")
         {
         }
@@ -87,9 +86,7 @@ namespace Aperiodic
             DA.GetData(5, ref seed);
 
             List<GeometryBase> gfa = null;
-            List<GeometryBase> gfaCopy = null;
 
-            // TODO: Double check performance, whether 2 or 3 iterations should be allowed without geoFilter
             if (geometryFilter == null)
             {
                 if (iterations > 2)
@@ -98,7 +95,6 @@ namespace Aperiodic
                     return;
                 }
                 gfa = null;
-                gfaCopy = null;
             }
             else if (!geometryFilter.IsValid)
             {
@@ -110,15 +106,11 @@ namespace Aperiodic
                     return;
                 }
                 gfa = null;
-                gfaCopy = null;
             }
             else
             {
                 gfa = GetGeoFilterArray(geometryFilter, iterations, centerpln);
-                gfaCopy = gfa.GetRange(0, gfa.Count);
             }
-
-            // DA.SetDataList(0, gfaCopy);
 
             // Generate meshes for each tile type
             Mesh refA6 = GenerateMeshA6(scale);
@@ -210,7 +202,6 @@ namespace Aperiodic
             Point3d basept = Point3d.Origin;
             Plane basepln = Plane.WorldXY;
 
-            // TODO: Clean up this area - possibly remove
             // Get the centroid of the geometry
             AreaMassProperties ampMesh = AreaMassProperties.Compute(mesh);
             Point3d centroidMesh = ampMesh.Centroid;
@@ -334,20 +325,16 @@ namespace Aperiodic
             // Add to baseplns list
             Plane baseplna6a600 = new Plane(basepln);
             Plane baseplna6a601 = new Plane(basepln);
-            //baseplna6a600.Translate(moveCloseCopy); // TODOL understand why
             baseplna6a601.Translate(moveFarCopy);
-            baseplna6a601.Translate(moveFarCopy); // TODO: understand why
+            baseplna6a601.Translate(moveFarCopy);
             plnsA6.Add(baseplna6a600);
             plnsA6.Add(baseplna6a601);
-
-            // TODO: refactor to take advantage of the 3-fold symmetry (only build 1/3 sides and rotate at the end or after each construction step)
 
             // For the close copy, move three K30 tiles to each of the top 3 faces
             int closeCopyInnerIndex = GetFurthestVertex(a6a600, (Point3d)basepta6a600);
             Point3d closeCopyInnerPt = (Point3d)a6a600.Vertices[closeCopyInnerIndex];
 
             // Get orientation planes for the K30
-
             // Get adjacent vertex points
             adjacentVertexIndices = a6a600.Vertices.GetConnectedVertices(closeCopyInnerIndex);
             List<Point3d> edgePoints = new List<Point3d>();
@@ -361,7 +348,6 @@ namespace Aperiodic
             Plane planea6k302 = new Plane(closeCopyInnerPt, edgePoints[2], edgePoints[0]);
 
             // Check normals for each plane to make sure they are flipped the right way
-            // TODO: incorporate signed vector angle
             double anglea6k300 = Vector3d.VectorAngle(planea6k300.Normal, edgePoints[2] - closeCopyInnerPt);
             if (anglea6k300 < Math.PI / 2)
             {
@@ -405,7 +391,7 @@ namespace Aperiodic
             ptsK30.Add(basepta6k301);
             ptsK30.Add(basepta6k302);
 
-            // Add to baseplns list TODO: reorient planes correctly
+            // Add to baseplns list
             Plane baseplna6k300 = Plane.WorldXY;
             Plane baseplna6k301 = Plane.WorldXY;
             Plane baseplna6k302 = Plane.WorldXY;
@@ -1023,7 +1009,6 @@ namespace Aperiodic
             double f20HeightRef = GetMeshHeight(refF20);
             double k30HeightRef = GetMeshHeight(refK30);
             double edgeLengthRef = refK30.TopologyEdges.EdgeLine(0).Length;
-            //double edgeLengthRef = refK30.Edges[0].PointAtEnd.DistanceTo(refK30.Edges[0].PointAtStart); //brep code
 
             Mesh mesh = refB12.DuplicateMesh();
             Point3d basept = Point3d.Origin;
@@ -1037,12 +1022,8 @@ namespace Aperiodic
             // Scale the vector by the deflationScalefactor to get the new centroid location
             // Subtract the original centroidVec to get the translation vector
             Vector3d inflateVec = centroidVec * DeflationScaleFactor - centroidVec;
-            // Translate the brep to the new scaled location (but without scaling the brep itself, so the unit size remains the same)
-            //mesh.Translate(inflateVec);
-            // Translate the basept to the new scaled location - consistent with the brep itself, so further operations on the base pts can recurse well
-            //basept += inflateVec;
             Transform scaleInflate = Transform.Scale(Point3d.Origin, DeflationScaleFactor);
-            basepln.Transform(scaleInflate); // TODO: check if only translation is enough here for baseplns
+            basepln.Transform(scaleInflate);
             basepln.Translate(inflateVec);
 
             // Set up smaller output lists
@@ -2336,7 +2317,6 @@ namespace Aperiodic
             double k30HeightRef = GetMeshHeight(refK30);
 
             // Get length reference (edge length of original triacontahedron)
-            //double edgeLengthRef = refK30.Edges[0].PointAtEnd.DistanceTo(refK30.Edges[0].PointAtStart); //brep code
             double edgeLengthRef = refK30.TopologyEdges.EdgeLine(0).Length;
 
             // Get angle reference
@@ -2346,10 +2326,6 @@ namespace Aperiodic
             Point3d basept = Point3d.Origin;
             Plane basepln = Plane.WorldXY;
 
-            // Scale center point of geometry by a factor of golden ratio^3
-            double goldenRatio = (1 + Math.Sqrt(5)) / 2;
-            double deflationScaleFactor = Math.Pow(goldenRatio, 3);
-
             // Get the centroid of the geometry
             AreaMassProperties ampMesh = AreaMassProperties.Compute(mesh);
             Point3d centroidMesh = ampMesh.Centroid;
@@ -2357,13 +2333,9 @@ namespace Aperiodic
             Vector3d centroidVec = new Vector3d(centroidMesh);
             // Scale the vector by the deflationScalefactor to get the new centroid location
             // Subtract the original centroidVec to get the translation vector
-            Vector3d inflateVec = centroidVec * deflationScaleFactor - centroidVec;
-            // Translate the brep to the new scaled location (but without scaling the brep itself, so the unit size remains the same)
-            //mesh.Translate(inflateVec);
-            // Translate the basept to the new scaled location - consistent with the brep itself, so further operations on the base pts can recurse well
-            //basept += inflateVec;
-            Transform scaleInflate = Transform.Scale(Point3d.Origin, deflationScaleFactor);
-            basepln.Transform(scaleInflate); // TODO: check if only translation is enough here for baseplns
+            Vector3d inflateVec = centroidVec * DeflationScaleFactor - centroidVec;
+            Transform scaleInflate = Transform.Scale(Point3d.Origin, DeflationScaleFactor);
+            basepln.Transform(scaleInflate);
             basepln.Translate(inflateVec);
 
             // Set up smaller output lists
@@ -2431,7 +2403,7 @@ namespace Aperiodic
 
             // Scale up F20 unit to get general boundaries of the inflated shapes
             // Scale center point of geometry by a factor of golden ratio^3
-            Transform xformScaleF20 = Transform.Scale(Point3d.Origin, deflationScaleFactor);
+            Transform xformScaleF20 = Transform.Scale(Point3d.Origin, DeflationScaleFactor);
             Mesh f20boundary = mesh.DuplicateMesh();
             f20boundary.Transform(xformScaleF20);
             Point3d f20boundarybase = basept;
@@ -3428,7 +3400,7 @@ namespace Aperiodic
             TranslatePlanesAlongNormals(plnsK30, k30HalfHeight);
 
             // Final Z-offset for all planes based on the deflated A6 half-height
-            double zTranslation = -f20HalfHeight * deflationScaleFactor;
+            double zTranslation = -f20HalfHeight * DeflationScaleFactor;
             Vector3d zOffset = new Vector3d(0, 0, zTranslation);
             TranslatePlanesInDirection(plnsA6, zOffset);
             TranslatePlanesInDirection(plnsB12, zOffset);
@@ -3456,7 +3428,6 @@ namespace Aperiodic
             double k30HeightRef = GetMeshHeight(refK30);
 
             // Get length reference (edge length of original triacontahedron)
-            //double edgeLengthRef = refK30.Edges[0].PointAtEnd.DistanceTo(refK30.Edges[0].PointAtStart); //brep code
             double edgeLengthRef = refK30.TopologyEdges.EdgeLine(0).Length;
 
             Mesh mesh = refK30.DuplicateMesh();
@@ -3476,7 +3447,7 @@ namespace Aperiodic
             // Translate the basept to the new scaled location - consistent with the brep itself, so further operations on the base pts can recurse well
             basept += inflateVec;
             Transform scaleInflate = Transform.Scale(Point3d.Origin, DeflationScaleFactor);
-            basepln.Transform(scaleInflate); // TODO: check if only translation is enough here for baseplns
+            basepln.Transform(scaleInflate);
             basepln.Translate(inflateVec);
 
             // Set up smaller output lists
@@ -4922,7 +4893,7 @@ namespace Aperiodic
             meshA6.Rotate(Math.PI / 2, Vector3d.ZAxis, Point3d.Origin);
 
             // Golden ratio
-            double phi = (1 + Math.Sqrt(5)) / 2;
+            double phi = GoldenRatio;
             // Rotate according to angle between long diagonal and face, so that long diagonal axis aligns with Z axis
             // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
             meshA6.Rotate(-Math.Acos(phi / Math.Sqrt(3)) - (Math.PI / 2), Vector3d.YAxis, Point3d.Origin);
@@ -5171,7 +5142,7 @@ namespace Aperiodic
             brepA6.Rotate(Math.PI / 2, Vector3d.ZAxis, Point3d.Origin);
 
             // Golden ratio
-            double phi = (1 + Math.Sqrt(5)) / 2;
+            double phi = GoldenRatio;
             // Rotate according to angle between long diagonal and face, so that long diagonal axis aligns with Z axis
             // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
             brepA6.Rotate(-Math.Acos(phi / Math.Sqrt(3)) - (Math.PI / 2), Vector3d.YAxis, Point3d.Origin);
@@ -5254,7 +5225,7 @@ namespace Aperiodic
                     }
                 }
 
-                // Create vertex p-represetnations
+                // Create vertex p-representations
                 List<int> v1_p_representation = new List<int>();
                 List<int> v2_p_representation = new List<int>();
                 List<int> v3_p_representation = new List<int>();

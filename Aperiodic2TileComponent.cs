@@ -5,7 +5,6 @@ using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 
 namespace Aperiodic
 {
@@ -23,7 +22,7 @@ namespace Aperiodic
         /// </summary>
         public Aperiodic2TileComponent()
           : base("Aperiodic 2-Tile", "2-Tile",
-            "Generate aperiodic 2-tile transformations (v1.0)",
+            "Generate aperiodic 2-tile transformations (v1.0.0)",
             "Aperiodic", "Aperiodic")
         {
         }
@@ -50,7 +49,7 @@ namespace Aperiodic
         {
             pManager.AddMeshParameter("Base Meshes", "baseMeshes", "Set of base mesh geometry of the two tiles. Apply the input transformations to view tiling result.", GH_ParamAccess.tree);
             pManager.AddBrepParameter("Base Breps", "baseBreps", "Set of base brep geometry of the two tiles. Apply the input transformations to view tiling result.", GH_ParamAccess.tree);
-            pManager.AddPlaneParameter("Tranformations", "X", "Apply these output transformations to the baseMeshes, baseBreps, or other substitute geometry. The tree structure contains a separate branch for each of the two tile types: {0} = oblate rhombohedron aka flat tile; {1} = prolate rhombohedron aka long tile", GH_ParamAccess.tree);
+            pManager.AddPlaneParameter("Transformations", "X", "Apply these output transformations to the baseMeshes, baseBreps, or other substitute geometry. The tree structure contains a separate branch for each of the two tile types: {0} = oblate rhombohedron aka flat tile; {1} = prolate rhombohedron aka long tile", GH_ParamAccess.tree);
         }
 
         /// <summary>
@@ -237,7 +236,7 @@ namespace Aperiodic
                 if (crvFilter.ClosestPoint(tilePoint, out t, filterDistance)) return true;
                 else return false;
             }
-            else return true; // TODO: Implement filter for other geometry types (mesh, point, etc)
+            else return true;
         }
 
         /// <summary>
@@ -626,7 +625,7 @@ namespace Aperiodic
             Mesh meshO6 = GenerateZonohedronMeshFromStarVectors(starVectors, scale);
 
             // Golden ratio
-            double phi = (1 + Math.Sqrt(5)) / 2;
+            double phi = GoldenRatio;
 
             // Rotate to orient according to base position in previous GH logic for transforming the tile
             // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
@@ -645,7 +644,7 @@ namespace Aperiodic
             Brep brepO6 = GenerateZonohedronBrepFromStarVectors(starVectors, scale);
 
             // Golden ratio
-            double phi = (1 + Math.Sqrt(5)) / 2;
+            double phi = GoldenRatio;
 
             // Rotate to orient according to base position in previous GH logic for transforming the tile
             // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
@@ -665,7 +664,7 @@ namespace Aperiodic
             meshA6.Rotate(Math.PI / 2, Vector3d.ZAxis, Point3d.Origin);
 
             // Golden ratio
-            double phi = (1 + Math.Sqrt(5)) / 2;
+            double phi = GoldenRatio;
             // Rotate according to angle between long diagonal and face, so that long diagonal axis aligns with Z axis
             // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
             meshA6.Rotate(-Math.Acos(phi / Math.Sqrt(3)) - (Math.PI / 2), Vector3d.YAxis, Point3d.Origin);
@@ -679,7 +678,7 @@ namespace Aperiodic
             brepA6.Rotate(Math.PI / 2, Vector3d.ZAxis, Point3d.Origin);
 
             // Golden ratio
-            double phi = (1 + Math.Sqrt(5)) / 2;
+            double phi = GoldenRatio;
             // Rotate according to angle between long diagonal and face, so that long diagonal axis aligns with Z axis
             // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
             brepA6.Rotate(-Math.Acos(phi / Math.Sqrt(3)) - (Math.PI / 2), Vector3d.YAxis, Point3d.Origin);
@@ -976,7 +975,7 @@ namespace Aperiodic
                     }
                 }
 
-                // Create vertex p-represetnations
+                // Create vertex p-representations
                 List<int> v1_p_representation = new List<int>();
                 List<int> v2_p_representation = new List<int>();
                 List<int> v3_p_representation = new List<int>();

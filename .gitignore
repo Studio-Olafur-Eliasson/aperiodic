@@ -8,3 +8,11 @@ obj/
 *.suo
 *.userosscache
 *.sln.docstates
+
+DeflationRuleA6.cs
+DeflationRuleB12.cs
+DeflationRuleF20.cs
+DeflationRuleK30.cs
+GoldenZonohedra.cs
+RecursiveDeflation.cs
+SeedOptions.cs
