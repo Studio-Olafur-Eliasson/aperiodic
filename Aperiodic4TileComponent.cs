@@ -129,18 +129,19 @@ namespace Aperiodic
 
             // Generate wireframe preview (only need to check branches 0 and 3 since seed options only include those two types of tiles)
             _previewCurves.Clear();
+            Transform previewScale = Transform.Scale(centerpln.Origin, Math.Pow(DeflationScaleFactor, iterations));
             foreach (var pln in baseplns.Branch(0))
             {
                 Mesh meshCopy = refA6.DuplicateMesh();
                 meshCopy.Transform(Transform.PlaneToPlane(Plane.WorldXY, pln));
-                meshCopy.Scale(Math.Pow(DeflationScaleFactor, iterations));
+                meshCopy.Transform(previewScale);
                 _previewCurves.AddRange(GetWireframeEdges(meshCopy));
             }
             foreach (var pln in baseplns.Branch(3))
             {
                 Mesh meshCopy = refK30.DuplicateMesh();
                 meshCopy.Transform(Transform.PlaneToPlane(Plane.WorldXY, pln));
-                meshCopy.Scale(Math.Pow(DeflationScaleFactor, iterations));
+                meshCopy.Transform(previewScale);
                 _previewCurves.AddRange(GetWireframeEdges(meshCopy));
             }
 
