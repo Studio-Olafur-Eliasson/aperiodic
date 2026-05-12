@@ -9,11 +9,3 @@ obj/
 *.userosscache
 *.sln.docstates
 launchSettings.json
-
-DeflationRuleA6.cs
-DeflationRuleB12.cs
-DeflationRuleF20.cs
-DeflationRuleK30.cs
-GoldenZonohedra.cs
-RecursiveDeflation.cs
-SeedOptions.cs
