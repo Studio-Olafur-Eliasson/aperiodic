@@ -1476,6 +1476,8 @@ namespace Aperiodic
             }
         }
 
+        public override GH_Exposure Exposure => GH_Exposure.quarternary;
+
         /// <summary>
         /// Gets the unique ID for this component. Do not change this ID after release.
         /// </summary>
