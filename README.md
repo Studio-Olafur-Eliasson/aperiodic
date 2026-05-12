@@ -26,12 +26,12 @@ Note: Assemblies are generated at a fixed scale in the current version. More fle
 The concepts and methods implemented in this plugin are described in the following publications:
 
 Claire Djang and Stefano Arrighi.
-“Aperiodic Space-Filling Geometry as a Spatial Logic.”
+*Aperiodic Space-Filling Geometry as a Spatial Logic.*
 Advances in Architectural Geometry (AAG 2025), MIT.
 www.dropbox.com/scl/fi/o5vbqlep1y3zr7beyocgn/18.pdf?rlkey=ks78vsoy55wqq3fqjtz9ujhic&st=bxkx5y1i&dl=0
 
 Claire Djang and Stefano Arrighi.
-“Constructing Three-Dimensional Quasicrystalline Assemblies.”
+*Constructing Three-Dimensional Quasicrystalline Assemblies.*
 Proceedings of the IASS Annual Symposium 2025.
 https://www.ingentaconnect.com/contentone/iass/piass/2025/00002025/00000007/art00008
 
@@ -48,7 +48,7 @@ https://doi.org/10.1039/C4RA09524C
 An animation explaining the geometric concepts behind the tiling system:
 
 Claire Djang.
-"Quasicrystals in an Age of Digital Design"
+*Quasicrystals in an Age of Digital Design*
 Bridges 2023 Short Film Festival
 https://gallery.bridgesmathart.org/exhibitions/2023-bridges-conference-short-film-festival/claire-djang
 
