@@ -46,6 +46,8 @@ namespace Aperiodic
         /// <param name="DA">The DA object is used to retrieve from inputs and store in outputs.</param>
         protected override void SolveInstance(IGH_DataAccess DA)
         {
+            // NOTE: BREP VERSION HAS BETTER ACCURACY
+
             // Declare variables
             GH_Structure<GH_Brep> outputbreps = new GH_Structure<GH_Brep>();
             GH_Structure<GH_Point> outputpts = new GH_Structure<GH_Point>();
