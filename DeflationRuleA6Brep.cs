@@ -17,7 +17,7 @@ namespace Aperiodic
         /// </summary>
         public DeflationRuleA6Brep()
           : base("DeflationRuleA6Brep", "DefA6Brep",
-              "Output planes corresponding the the deflation rules for the A6 tile (additionally output meshes and points). Updated to work with Brep input and operations.",
+              "Output planes corresponding the the deflation rules for the A6 tile (additionally output breps and points). Updated to work with Brep input and operations.",
               "Aperiodic", "Aperiodic")
         {
         }
