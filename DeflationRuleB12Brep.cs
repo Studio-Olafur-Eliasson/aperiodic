@@ -327,16 +327,16 @@ namespace Aperiodic
 
                                 // Mirror the A6 on two sides
                                 // Get furthest vertex of the copy
-                                int furthestVertexIndex = GetFurthestVertex(b12a61, b12a61base);
-                                Point3d furthestVertexPt = b12a61.Vertices[furthestVertexIndex].Location;
+                                BrepVertex furthestVertex = GetFurthestVertex(b12a61, b12a61base);
+                                Point3d furthestVertexPt = furthestVertex.Location;
 
                                 // Get adjacent vertex points
-                                edgeIndices = b12a61.Vertices[furthestVertexIndex].EdgeIndices();
+                                edgeIndices = furthestVertex.EdgeIndices();
                                 edgePoints = new List<Point3d>();
                                 for (int k = 0; k < edgeIndices.Length; k++)
                                 {
                                     BrepEdge edge = b12a61.Edges[edgeIndices[k]];
-                                    int adjacentVertexIndex = (edge.StartVertex.VertexIndex == furthestVertexIndex)
+                                    int adjacentVertexIndex = (edge.StartVertex.VertexIndex == furthestVertex.VertexIndex)
                                         ? edge.EndVertex.VertexIndex
                                         : edge.StartVertex.VertexIndex;
                                     edgePoints.Add(b12a61.Vertices[adjacentVertexIndex].Location);
@@ -471,9 +471,9 @@ namespace Aperiodic
                         if ((Vector3d.Multiply(normal, planeb12k300.Normal) < 0.4) && (Vector3d.Multiply(normal, planeb12k300.Normal) > 0.3))
                         {
                             // Reflect out once more - get mirror plane from outer vertex
-                            int outerVertexFlip = GetFurthestVertex(b12a60, (Point3d)b12a60base);
-                            Point3d b12a63origin = b12a60.Vertices[outerVertexFlip].Location;
-                            Vector3d b12a63normal = GetVertexNormal(b12a60,outerVertexFlip);
+                            BrepVertex outerVertexFlip = GetFurthestVertex(b12a60, (Point3d)b12a60base);
+                            Point3d b12a63origin = outerVertexFlip.Location;
+                            Vector3d b12a63normal = GetVertexNormal(b12a60,outerVertexFlip.VertexIndex);
                             Plane planeb12a63 = new Plane(b12a63origin, b12a63normal);
                             Transform mirrorb12a63 = Transform.Mirror(planeb12a63);
                             // Perform mirror transformation, then rotate 60 degrees
@@ -523,18 +523,18 @@ namespace Aperiodic
                             plnsA6.Add(planeb12a64base);
 
                             // Finally use edges from this last A6 as axis for placing F20 on the end
-                            int outerVertexIndex = GetClosestVertex(b12a64,b12a64base);
-                            Point3d outerVertexPt = b12a64.Vertices[outerVertexIndex].Location;
+                            BrepVertex outerVertex = GetClosestVertex(b12a64,b12a64base);
+                            Point3d outerVertexPt = outerVertex.Location;
 
                             // Get adjacent vertex points and find top adjacent vertex
-                            edgeIndices = b12a64.Vertices[outerVertexIndex].EdgeIndices();
+                            edgeIndices = outerVertex.EdgeIndices();
                             edgePoints = new List<Point3d>();
                             int topAdjacentVertexIndex = 0;
                             Point3d topAdjacentVertex = new Point3d();
                             for (int k = 0; k < edgeIndices.Length; k++)
                             {
                                 BrepEdge edge = b12a64.Edges[edgeIndices[k]];
-                                int adjacentVertexIndex = (edge.StartVertex.VertexIndex == outerVertexIndex)
+                                int adjacentVertexIndex = (edge.StartVertex.VertexIndex == outerVertex.VertexIndex)
                                     ? edge.EndVertex.VertexIndex
                                     : edge.StartVertex.VertexIndex;
                                 Point3d possiblePt = b12a64.Vertices[adjacentVertexIndex].Location;
@@ -602,16 +602,16 @@ namespace Aperiodic
                         }
 
                         // Copy A6 3 more times...
-                        int furthestVertexIndex = GetFurthestVertex(b12a60, b12a60base);
-                        Point3d furthestVertexPt = b12a60.Vertices[furthestVertexIndex].Location;
+                        BrepVertex furthestVertex = GetFurthestVertex(b12a60, b12a60base);
+                        Point3d furthestVertexPt = furthestVertex.Location;
 
                         // Get adjacent vertex points
-                        edgeIndices = b12a60.Vertices[furthestVertexIndex].EdgeIndices();
+                        edgeIndices = furthestVertex.EdgeIndices();
                         edgePoints = new List<Point3d>();
                         for (int k = 0; k < edgeIndices.Length; k++)
                         {
                             BrepEdge edge = b12a60.Edges[edgeIndices[k]];
-                            int adjacentVertexIndex = (edge.StartVertex.VertexIndex == furthestVertexIndex)
+                            int adjacentVertexIndex = (edge.StartVertex.VertexIndex == furthestVertex.VertexIndex)
                                 ? edge.EndVertex.VertexIndex
                                 : edge.StartVertex.VertexIndex;
                             edgePoints.Add(b12a60.Vertices[adjacentVertexIndex].Location);
@@ -732,11 +732,11 @@ namespace Aperiodic
 
                         // Using this F20, we find the two poles and array five A6 around both...
                         // Get furthest vertex
-                        int furthestVertexIndex = GetFurthestVertex(copyf, planeCenter5);
-                        Point3d furthestVertexPt = copyf.Vertices[furthestVertexIndex].Location;
+                        BrepVertex furthestVertex = GetFurthestVertex(copyf, planeCenter5);
+                        Point3d furthestVertexPt = furthestVertex.Location;
 
                         // Get one adjacent vertex
-                        edgeIndices = copyf.Vertices[furthestVertexIndex].EdgeIndices();
+                        edgeIndices = furthestVertex.EdgeIndices();
                         BrepEdge edge = copyf.Edges[edgeIndices[0]];
                         Point3d edgept = edge.EdgeCurve.PointAtEnd;
                         if (edgept == furthestVertexPt)
@@ -824,11 +824,11 @@ namespace Aperiodic
 
                         // A6 array of 5 on the inner side the F20
                         // Get closest vertex
-                        int closestVertexIndex = GetClosestVertex(copyf, (Point3d)planeCenter5);
-                        Point3d closestVertexPt = copyf.Vertices[closestVertexIndex].Location;
+                        BrepVertex closestVertex = GetClosestVertex(copyf, planeCenter5);
+                        Point3d closestVertexPt = closestVertex.Location;
 
                         // Get one adjacent vertex
-                        edgeIndices = copyf.Vertices[closestVertexIndex].EdgeIndices();
+                        edgeIndices = closestVertex.EdgeIndices();
                         edge = copyf.Edges[edgeIndices[0]];
                         edgept = edge.EdgeCurve.PointAtEnd;
                         if (edgept == closestVertexPt)
@@ -1463,40 +1463,40 @@ namespace Aperiodic
 
 
 
-        public static int GetFurthestVertex(Brep brep, Point3d reference)
+        public static BrepVertex GetFurthestVertex(Brep brep, Point3d reference)
         {
-            int furthestVertexIndex = 0;
+            BrepVertex furthestVertex = brep.Vertices[0];
             Point3d currentVertex = new Point3d();
             double maxDistance = 0;
-            for (int i = 0; i < brep.Vertices.Count; i++)
+            foreach (BrepVertex v in brep.Vertices)
             {
-                currentVertex = brep.Vertices[i].Location;
+                currentVertex = v.Location;
                 double distance = currentVertex.DistanceTo(reference);
                 if (distance > maxDistance)
                 {
-                    furthestVertexIndex = i;
+                    furthestVertex = v;
                     maxDistance = distance;
                 }
             }
-            return furthestVertexIndex;
+            return furthestVertex;
         }
 
-        public static int GetClosestVertex(Brep brep, Point3d reference)
+        public static BrepVertex GetClosestVertex(Brep brep, Point3d reference)
         {
-            int closestVertexIndex = 0;
+            BrepVertex closestVertex = brep.Vertices[0];
             Point3d currentVertex = new Point3d();
             double minDistance = 1000000000;
-            for (int i = 0; i < brep.Vertices.Count; i++)
+            foreach (BrepVertex v in brep.Vertices)
             {
-                currentVertex = brep.Vertices[i].Location;
+                currentVertex = v.Location;
                 double distance = currentVertex.DistanceTo(reference);
                 if (distance < minDistance)
                 {
-                    closestVertexIndex = i;
+                    closestVertex = v;
                     minDistance = distance;
                 }
             }
-            return closestVertexIndex;
+            return closestVertex;
         }
 
         /// <summary>
