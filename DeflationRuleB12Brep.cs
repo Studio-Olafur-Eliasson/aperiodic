@@ -44,8 +44,6 @@ namespace Aperiodic
         /// <param name="DA">The DA object is used to retrieve from inputs and store in outputs.</param>
         protected override void SolveInstance(IGH_DataAccess DA)
         {
-            try
-            {
             // Declare variables
             GH_Structure<GH_Brep> outputbreps = new GH_Structure<GH_Brep>();
             GH_Structure<GH_Point> outputpts = new GH_Structure<GH_Point>();
@@ -500,7 +498,7 @@ namespace Aperiodic
                             plnsA6.Add(planeb12a63base);
 
                             // Mirror this once more
-                            int faceFlip = GetFurthestFace(b12a63, (Point3d)b12a63origin - orientb12k300);
+                            int faceFlip = GetFurthestFace(b12a63, b12a63origin - orientb12k300);
                             Point3d centerFaceFlip = GetBrepFaceCenter(b12a63, faceFlip);
                             Vector3d faceFlipNormal = b12a63.Faces[faceFlip].NormalAt(0.5, 0.5);
                             Plane planeb12a64 = new Plane(centerFaceFlip, faceFlipNormal);
@@ -1461,20 +1459,6 @@ namespace Aperiodic
                 outputplns.Append(new GH_Plane(pl), pth3);
             }
             DA.SetDataTree(2, outputplns);
-
-            }
-            catch (IndexOutOfRangeException ex)
-            {
-                Rhino.RhinoApp.WriteLine($"IndexOutOfRangeException: {ex.Message}");
-                Rhino.RhinoApp.WriteLine($"Stack trace: {ex.StackTrace}");
-                this.AddRuntimeMessage(GH_RuntimeMessageLevel.Error, $"Array bounds error: {ex.Message}");
-            }
-            catch (Exception ex)
-            {
-                Rhino.RhinoApp.WriteLine($"General Exception: {ex.Message}");
-                Rhino.RhinoApp.WriteLine($"Stack trace: {ex.StackTrace}");
-                this.AddRuntimeMessage(GH_RuntimeMessageLevel.Error, $"Error: {ex.Message}");
-            }
         }
 
 
