@@ -16,6 +16,9 @@ namespace Aperiodic
         private static readonly double DeflationScaleFactor = Math.Pow(GoldenRatio, 3);
         private static readonly double InverseDeflationScaleFactor = 1.0 / DeflationScaleFactor;
 
+        // Cache deflation planes to avoid recalculating them each time the component runs
+        private Plane[][][] _cachedDeflationPlanes;
+
         // Store geometry to preview
         private List<Curve> _previewCurves = new List<Curve>();
 
@@ -152,22 +155,27 @@ namespace Aperiodic
             TranslateToWorldXY(refF20);
             TranslateToWorldXY(refK30);
 
-            // Generate deflation rules
-            DataTree<Plane> generatedA6plns = GenerateDeflationPlanesA6(refA6, refB12, refF20, refK30);
-            DataTree<Plane> generatedB12plns = GenerateDeflationPlanesB12(refA6, refB12, refF20, refK30);
-            DataTree<Plane> generatedF20plns = GenerateDeflationPlanesF20(refA6, refB12, refF20, refK30);
-            DataTree<Plane> generatedK30plns = GenerateDeflationPlanesK30(refA6, refB12, refF20, refK30);
+            if (_cachedDeflationPlanes == null)
+            {
+                // Generate deflation rules
+                DataTree<Plane> generatedA6plns = GenerateDeflationPlanesA6(refA6, refB12, refF20, refK30);
+                DataTree<Plane> generatedB12plns = GenerateDeflationPlanesB12(refA6, refB12, refF20, refK30);
+                DataTree<Plane> generatedF20plns = GenerateDeflationPlanesF20(refA6, refB12, refF20, refK30);
+                DataTree<Plane> generatedK30plns = GenerateDeflationPlanesK30(refA6, refB12, refF20, refK30);
 
-            // Pre-extract deflation planes to native Plane arrays for faster access
-            // deflationRules[tileType] = Plane[branchIndex][planeIndex]
-            Plane[][][] deflationRules = new Plane[4][][];
-            deflationRules[0] = ExtractPlaneArrays(generatedA6plns);
-            deflationRules[1] = ExtractPlaneArrays(generatedB12plns);
-            deflationRules[2] = ExtractPlaneArrays(generatedF20plns);
-            deflationRules[3] = ExtractPlaneArrays(generatedK30plns);
+                // Pre-extract deflation planes to native Plane arrays for faster access
+                // deflationRules[tileType] = Plane[branchIndex][planeIndex]
+                Plane[][][] deflationRules = new Plane[4][][];
+                deflationRules[0] = ExtractPlaneArrays(generatedA6plns);
+                deflationRules[1] = ExtractPlaneArrays(generatedB12plns);
+                deflationRules[2] = ExtractPlaneArrays(generatedF20plns);
+                deflationRules[3] = ExtractPlaneArrays(generatedK30plns);
+
+                _cachedDeflationPlanes = deflationRules;
+            }
 
             // Perform recursive inflation/deflation process to get output planes for transformations
-            DataTree<Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, deflationRules);
+            DataTree<Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, _cachedDeflationPlanes);
 
             // Generate Base Meshes
             DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
