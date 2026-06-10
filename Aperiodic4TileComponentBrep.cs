@@ -19,6 +19,10 @@ namespace Aperiodic
         // Cache deflation planes to avoid recalculating them each time the component runs
         private Plane[][][] _cachedDeflationPlanes;
 
+        // Cache base breps and meshes
+        private DataTree<Brep> _cachedBaseBreps;
+        private DataTree<Mesh> _cachedBaseMeshes;
+
         // Store geometry to preview
         private List<Curve> _previewCurves = new List<Curve>();
 
@@ -116,16 +120,48 @@ namespace Aperiodic
                 gfa = GetGeoFilterArray(geometryFilter, iterations, centerpln);
             }
 
-            // Generate meshes for each tile type
-            Brep refA6 = GenerateBrepA6(scale);
-            Brep refB12 = GenerateBrepB12(scale);
-            Brep refF20 = GenerateBrepF20(scale);
-            Brep refK30 = GenerateBrepK30(scale);
-            DataTree<Brep> baseBreps = new DataTree<Brep>();
-            baseBreps.Add(refA6.DuplicateBrep(), new GH_Path(0));
-            baseBreps.Add(refB12.DuplicateBrep(), new GH_Path(1));
-            baseBreps.Add(refF20.DuplicateBrep(), new GH_Path(2));
-            baseBreps.Add(refK30.DuplicateBrep(), new GH_Path(3));
+            if (_cachedBaseMeshes == null)
+            {
+                // Generate Base Meshes
+                DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
+                Mesh meshA6 = GenerateMeshA6(scale);
+                Mesh meshB12 = GenerateMeshB12(scale);
+                Mesh meshF20 = GenerateMeshF20(scale);
+                Mesh meshK30 = GenerateMeshK30(scale);
+                baseMeshes.Add(meshA6, new GH_Path(0));
+                baseMeshes.Add(meshB12, new GH_Path(1));
+                baseMeshes.Add(meshF20, new GH_Path(2));
+                baseMeshes.Add(meshK30, new GH_Path(3));
+                _cachedBaseMeshes = baseMeshes;
+            }
+
+            // Set up base breps
+            Brep refA6;
+            Brep refB12;
+            Brep refF20;
+            Brep refK30;
+
+            if (_cachedBaseBreps == null)
+            {
+                // Generate breps for each tile type
+                refA6 = GenerateBrepA6(scale);
+                refB12 = GenerateBrepB12(scale);
+                refF20 = GenerateBrepF20(scale);
+                refK30 = GenerateBrepK30(scale);
+
+                DataTree<Brep> baseBreps = new DataTree<Brep>();
+                baseBreps.Add(refA6, new GH_Path(0));
+                baseBreps.Add(refB12, new GH_Path(1));
+                baseBreps.Add(refF20, new GH_Path(2));
+                baseBreps.Add(refK30, new GH_Path(3));
+
+                _cachedBaseBreps = baseBreps;
+            }
+
+            refA6 = _cachedBaseBreps.Branch(0)[0].DuplicateBrep();
+            refB12 = _cachedBaseBreps.Branch(1)[0].DuplicateBrep();
+            refF20 = _cachedBaseBreps.Branch(2)[0].DuplicateBrep();
+            refK30 = _cachedBaseBreps.Branch(3)[0].DuplicateBrep();
 
             // Generate the base planes according to chosen seed option and center plane
             double a6HeightRef = GetBrepHeight(refA6);
@@ -177,20 +213,9 @@ namespace Aperiodic
             // Perform recursive inflation/deflation process to get output planes for transformations
             DataTree<Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, _cachedDeflationPlanes);
 
-            // Generate Base Meshes
-            DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
-            Mesh meshA6 = GenerateMeshA6(scale);
-            Mesh meshB12 = GenerateMeshB12(scale);
-            Mesh meshF20 = GenerateMeshF20(scale);
-            Mesh meshK30 = GenerateMeshK30(scale);
-            baseMeshes.Add(meshA6, new GH_Path(0));
-            baseMeshes.Add(meshB12, new GH_Path(1));
-            baseMeshes.Add(meshF20, new GH_Path(2));
-            baseMeshes.Add(meshK30, new GH_Path(3));
-
             // Set output parameter data
-            DA.SetDataTree(0, baseMeshes);
-            DA.SetDataTree(1, baseBreps);
+            DA.SetDataTree(0, _cachedBaseMeshes);
+            DA.SetDataTree(1, _cachedBaseBreps);
             DA.SetDataTree(2, outputplns);
         }
 
