@@ -8,7 +8,7 @@ using System.Collections.Generic;
 
 namespace Aperiodic
 {
-    public class Aperiodic4TileComponent : GH_Component
+    public class Aperiodic4TileBrepComponent : GH_Component
     {
         // Cache commonly used constants
         private static readonly double GoldenRatio = (1 + Math.Sqrt(5)) / 2;
@@ -25,9 +25,9 @@ namespace Aperiodic
         /// Subcategory the panel. If you use non-existing tab or panel names, 
         /// new tabs/panels will automatically be created.
         /// </summary>
-        public Aperiodic4TileComponent()
-          : base("Aperiodic 4-Tile", "4-Tile",
-            "Generate aperiodic 4-tile transformations (v1.0.0)",
+        public Aperiodic4TileBrepComponent()
+          : base("Aperiodic 4-Tile Brep", "4-Tile Brep",
+            "Generate aperiodic 4-tile transformations (testing version with brep)",
             "Aperiodic", "Aperiodic")
         {
         }
@@ -113,18 +113,18 @@ namespace Aperiodic
             }
 
             // Generate meshes for each tile type
-            Mesh refA6 = GenerateMeshA6(scale);
-            Mesh refB12 = GenerateMeshB12(scale);
-            Mesh refF20 = GenerateMeshF20(scale);
-            Mesh refK30 = GenerateMeshK30(scale);
-            DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
-            baseMeshes.Add(refA6.DuplicateMesh(), new GH_Path(0));
-            baseMeshes.Add(refB12.DuplicateMesh(), new GH_Path(1));
-            baseMeshes.Add(refF20.DuplicateMesh(), new GH_Path(2));
-            baseMeshes.Add(refK30.DuplicateMesh(), new GH_Path(3));
+            Brep refA6 = GenerateBrepA6(scale);
+            Brep refB12 = GenerateBrepB12(scale);
+            Brep refF20 = GenerateBrepF20(scale);
+            Brep refK30 = GenerateBrepK30(scale);
+            DataTree<Brep> baseBreps = new DataTree<Brep>();
+            baseBreps.Add(refA6.DuplicateBrep(), new GH_Path(0));
+            baseBreps.Add(refB12.DuplicateBrep(), new GH_Path(1));
+            baseBreps.Add(refF20.DuplicateBrep(), new GH_Path(2));
+            baseBreps.Add(refK30.DuplicateBrep(), new GH_Path(3));
 
             // Generate the base planes according to chosen seed option and center plane
-            double a6HeightRef = GetMeshHeight(refA6);
+            double a6HeightRef = GetBrepHeight(refA6);
             DataTree<Plane> baseplns = GenerateBasePlnsFromSeed(seed, centerpln, a6HeightRef);
 
             // Generate wireframe preview (only need to check branches 0 and 3 since seed options only include those two types of tiles)
@@ -132,17 +132,17 @@ namespace Aperiodic
             Transform previewScale = Transform.Scale(centerpln.Origin, Math.Pow(DeflationScaleFactor, iterations));
             foreach (var pln in baseplns.Branch(0))
             {
-                Mesh meshCopy = refA6.DuplicateMesh();
-                meshCopy.Transform(Transform.PlaneToPlane(Plane.WorldXY, pln));
-                meshCopy.Transform(previewScale);
-                _previewCurves.AddRange(GetWireframeEdges(meshCopy));
+                Brep brepCopy = refA6.DuplicateBrep();
+                brepCopy.Transform(Transform.PlaneToPlane(Plane.WorldXY, pln));
+                brepCopy.Transform(previewScale);
+                _previewCurves.AddRange(brepCopy.GetWireframe(0));
             }
             foreach (var pln in baseplns.Branch(3))
             {
-                Mesh meshCopy = refK30.DuplicateMesh();
-                meshCopy.Transform(Transform.PlaneToPlane(Plane.WorldXY, pln));
-                meshCopy.Transform(previewScale);
-                _previewCurves.AddRange(GetWireframeEdges(meshCopy));
+                Brep brepCopy = refK30.DuplicateBrep();
+                brepCopy.Transform(Transform.PlaneToPlane(Plane.WorldXY, pln));
+                brepCopy.Transform(previewScale);
+                _previewCurves.AddRange(brepCopy.GetWireframe(0));
             }
 
             // Translate reference meshes so their base sits on WorldXY plane (preparing to apply deflation rules)
@@ -168,16 +168,16 @@ namespace Aperiodic
             // Perform recursive inflation/deflation process to get output planes for transformations
             DataTree<Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, deflationRules);
 
-            // Generate Base Breps
-            DataTree<Brep> baseBreps = new DataTree<Brep>();
-            Brep brepA6 = GenerateBrepA6(scale);
-            Brep brepB12 = GenerateBrepB12(scale);
-            Brep brepF20 = GenerateBrepF20(scale);
-            Brep brepK30 = GenerateBrepK30(scale);
-            baseBreps.Add(brepA6, new GH_Path(0));
-            baseBreps.Add(brepB12, new GH_Path(1));
-            baseBreps.Add(brepF20, new GH_Path(2));
-            baseBreps.Add(brepK30, new GH_Path(3));
+            // Generate Base Meshes
+            DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
+            Mesh meshA6 = GenerateMeshA6(scale);
+            Mesh meshB12 = GenerateMeshB12(scale);
+            Mesh meshF20 = GenerateMeshF20(scale);
+            Mesh meshK30 = GenerateMeshK30(scale);
+            baseMeshes.Add(meshA6, new GH_Path(0));
+            baseMeshes.Add(meshB12, new GH_Path(1));
+            baseMeshes.Add(meshF20, new GH_Path(2));
+            baseMeshes.Add(meshK30, new GH_Path(3));
 
             // Set output parameter data
             DA.SetDataTree(0, baseMeshes);
@@ -5118,21 +5118,21 @@ namespace Aperiodic
             return mesh;
         }
 
-        public static void TranslateToWorldXY(Mesh mesh)
+        public static void TranslateToWorldXY(Brep brep)
         {
             // Find the minimum Z value among all topology vertices
             double minZ = double.MaxValue;
-            for (int i = 0; i < mesh.TopologyVertices.Count; i++)
+            for (int i = 0; i < brep.Vertices.Count; i++)
             {
-                double z = mesh.TopologyVertices[i].Z;
+                double z = brep.Vertices[i].Location.Z;
                 if (z < minZ)
                     minZ = z;
             }
 
-            // Translate the mesh so its base sits on WorldXY (Z = 0)
+            // Translate the brep so its base sits on WorldXY (Z = 0)
             if (Math.Abs(minZ) > 0.0001) // Only translate if not already at Z = 0
             {
-                mesh.Translate(new Vector3d(0, 0, -minZ));
+                brep.Translate(new Vector3d(0, 0, -minZ));
             }
         }
 
@@ -5295,6 +5295,12 @@ namespace Aperiodic
             return bbox.Max.Z - bbox.Min.Z;
         }
 
+        public static double GetBrepHeight(Brep brep)
+        {
+            BoundingBox bbox = brep.GetBoundingBox(true);
+            return bbox.Max.Z - bbox.Min.Z;
+        }
+
         public static DataTree<Plane> GenerateBasePlnsFromSeed(int seed, Plane centerpln, double a6HeightRef)
         {
             // Create baseplns data tree and ensure paths for each tile type
@@ -5446,13 +5452,13 @@ namespace Aperiodic
         /// </summary>
         protected override System.Drawing.Bitmap Icon => Resources.aperiodic4tile24px;
 
-        public override GH_Exposure Exposure => GH_Exposure.primary;
+        public override GH_Exposure Exposure => GH_Exposure.senary;
 
         /// <summary>
         /// Each component must have a unique Guid to identify it. 
         /// It is vital this Guid doesn't change otherwise old ghx files 
         /// that use the old ID will partially fail during loading.
         /// </summary>
-        public override Guid ComponentGuid => new Guid("{7693d4a5-60af-4d28-a69d-739af538a058}");
+        public override Guid ComponentGuid => new Guid("E6148971-4FFE-49F6-891F-69863CF2D5A0");
     }
 }
