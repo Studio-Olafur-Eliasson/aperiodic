@@ -1021,7 +1021,7 @@ namespace Aperiodic
             // Set up DataTree
             DataTree<Plane> deflationRulesB12 = new DataTree<Plane>();
 
-            // Get height references from original input meshes
+            // Get height references from original input breps
             double a6HeightRef = GetBrepHeight(refA6);
             double b12HeightRef = GetBrepHeight(refB12);
             double f20HeightRef = GetBrepHeight(refF20);
@@ -2318,32 +2318,32 @@ namespace Aperiodic
             return deflationRulesB12;
         }
 
-        private static DataTree<Plane> GenerateDeflationPlanesF20(Mesh refA6, Mesh refB12, Mesh refF20, Mesh refK30)
+        private static DataTree<Plane> GenerateDeflationPlanesF20(Brep refA6, Brep refB12, Brep refF20, Brep refK30)
         {
             // Set up DataTree
             DataTree<Plane> deflationRulesF20 = new DataTree<Plane>();
 
             // Get height references from original input meshes
-            double a6HeightRef = GetMeshHeight(refA6);
-            double b12HeightRef = GetMeshHeight(refB12);
-            double f20HeightRef = GetMeshHeight(refF20);
-            double k30HeightRef = GetMeshHeight(refK30);
+            double a6HeightRef = GetBrepHeight(refA6);
+            double b12HeightRef = GetBrepHeight(refB12);
+            double f20HeightRef = GetBrepHeight(refF20);
+            double k30HeightRef = GetBrepHeight(refK30);
 
             // Get length reference (edge length of original triacontahedron)
-            double edgeLengthRef = refK30.TopologyEdges.EdgeLine(0).Length;
+            double edgeLengthRef = refK30.Edges[0].PointAtEnd.DistanceTo(refK30.Edges[0].PointAtStart);
 
             // Get angle reference
             double rhombAcuteAngle = 2 * Math.Atan(1 / GoldenRatio);
 
-            Mesh mesh = refF20.DuplicateMesh();
+            Brep brep = refF20.DuplicateBrep();
             Point3d basept = Point3d.Origin;
             Plane basepln = Plane.WorldXY;
 
             // Get the centroid of the geometry
-            AreaMassProperties ampMesh = AreaMassProperties.Compute(mesh);
-            Point3d centroidMesh = ampMesh.Centroid;
+            AreaMassProperties ampBrep = AreaMassProperties.Compute(brep);
+            Point3d centroidBrep = ampBrep.Centroid;
             // Create a vector using the centroid location
-            Vector3d centroidVec = new Vector3d(centroidMesh);
+            Vector3d centroidVec = new Vector3d(centroidBrep);
             // Scale the vector by the deflationScalefactor to get the new centroid location
             // Subtract the original centroidVec to get the translation vector
             Vector3d inflateVec = centroidVec * DeflationScaleFactor - centroidVec;
@@ -2352,10 +2352,10 @@ namespace Aperiodic
             basepln.Translate(inflateVec);
 
             // Set up smaller output lists
-            List<Mesh> listA6 = new List<Mesh>();
-            List<Mesh> listB12 = new List<Mesh>();
-            List<Mesh> listF20 = new List<Mesh>();
-            List<Mesh> listK30 = new List<Mesh>();
+            List<Brep> listA6 = new List<Brep>();
+            List<Brep> listB12 = new List<Brep>();
+            List<Brep> listF20 = new List<Brep>();
+            List<Brep> listK30 = new List<Brep>();
             List<Point3d> ptsA6 = new List<Point3d>();
             List<Point3d> ptsB12 = new List<Point3d>();
             List<Point3d> ptsF20 = new List<Point3d>();
@@ -2368,47 +2368,48 @@ namespace Aperiodic
             // Set up base orientation for A6 transformation later in step (h)
             // (Alternatively we could change the base position of the refA6 geometry but this might mean rewriting everything)
             // Get base plane for orientation transform using refA6 leftmost vertex as center and adjacent edges below it
-            Point3d leftmostVertex = new Point3d();
-            int leftmostVertexIndex = 0;
+            BrepVertex leftmostVertex = refA6.Vertices[0];
             double minX = 0;
-            for (int i = 0; i < refA6.TopologyVertices.Count; i++)
+            foreach (BrepVertex a6v in refA6.Vertices)
             {
-                double currentX = refA6.TopologyVertices[i].X;
+                double currentX = a6v.Location.X;
                 if (currentX < minX)
                 {
-                    leftmostVertex = refA6.TopologyVertices[i];
-                    leftmostVertexIndex = i;
+                    leftmostVertex = a6v;
                     minX = currentX;
                 }
             }
-            Point3d baseCenter = leftmostVertex;
 
-            // Get adjacent vertex points
-            int[] adjacentVertexIndices = refA6.Vertices.GetConnectedVertices(leftmostVertexIndex);
-            List<Point3d> basea6pts = new List<Point3d>();
-            for (int i = 0; i < 3; i++)
+            Point3d baseCenter = leftmostVertex.Location;
+
+            int[] edgeIndices = leftmostVertex.EdgeIndices();
+            List<Point3d> edgePoints = new List<Point3d>();
+            for (int j = 0; j < 3; j++)
             {
-                Point3d possibleEdgePt = refA6.TopologyVertices[adjacentVertexIndices[i]];
-                if (possibleEdgePt.X < -0.0001) // We only want two of the vertices, the ones not at x = 0, y = 0
+                BrepEdge edgeh = refA6.Edges[edgeIndices[j]];
+                Point3d edgepth = edgeh.EdgeCurve.PointAtEnd;
+                if (edgepth == baseCenter)
                 {
-                    basea6pts.Add(possibleEdgePt);
+                    edgepth = edgeh.EdgeCurve.PointAtStart;
                 }
+                // We only want two of the vertices, the ones not at x = 0, y = 0
+                if (edgepth.X < -0.0001) edgePoints.Add(edgepth);
             }
 
             // Order edgepts to set up the plane a6base
             Plane a6base;
-            if (basea6pts[0].Y < basea6pts[1].Y)
+            if (edgePoints[0].Y < edgePoints[1].Y)
             {
-                a6base = new Plane(baseCenter, basea6pts[0], basea6pts[1]);
+                a6base = new Plane(baseCenter, edgePoints[0], edgePoints[1]);
             }
             else
             {
-                a6base = new Plane(baseCenter, basea6pts[1], basea6pts[0]);
+                a6base = new Plane(baseCenter, edgePoints[1], edgePoints[0]);
             }
 
             // Set up base orientation for K30 transformation in step (a6-000)
-            Point3d k30basecenter = refK30.TopologyVertices[GetClosestVertex(refK30, new Point3d(0, -1, 0))];
-            Point3d k30basexaxis = refK30.TopologyVertices[GetClosestVertex(refK30, new Point3d(1, 0, 0))];
+            Point3d k30basecenter = GetClosestVertex(refK30, new Point3d(0, -1, 0)).Location;
+            Point3d k30basexaxis = GetClosestVertex(refK30, new Point3d(1, 0, 0)).Location;
             Point3d k30baseyaxis = new Point3d(-k30basexaxis.X, 0, 0);
             Plane k30base = new Plane(k30basecenter, k30basexaxis, k30baseyaxis);
 
@@ -2417,25 +2418,29 @@ namespace Aperiodic
             // Scale up F20 unit to get general boundaries of the inflated shapes
             // Scale center point of geometry by a factor of golden ratio^3
             Transform xformScaleF20 = Transform.Scale(Point3d.Origin, DeflationScaleFactor);
-            Mesh f20boundary = mesh.DuplicateMesh();
+            Brep f20boundary = brep.DuplicateBrep();
             f20boundary.Transform(xformScaleF20);
             Point3d f20boundarybase = basept;
             f20boundarybase.Transform(xformScaleF20);
 
             // Get far pt vertex
-            int f20farvertexIndex = GetFurthestVertex(f20boundary, (Point3d)f20boundarybase);
-            Point3d f20farvertexPt = (Point3d)f20boundary.TopologyVertices[f20farvertexIndex];
+            Point3d f20farvertexPt = GetFurthestVertex(f20boundary, f20boundarybase).Location;
 
             // Array 5 of the A6 around base pt
             // Get base pt vertex
-            int f20basevertexIndex = GetClosestVertex(f20boundary, (Point3d)f20boundarybase);
-            Point3d f20basevertexPt = (Point3d)f20boundary.TopologyVertices[f20basevertexIndex];
+            BrepVertex f20basevertex = GetClosestVertex(f20boundary, f20boundarybase);
+            Point3d f20basevertexPt = f20basevertex.Location;
             Vector3d normalf20 = f20farvertexPt - f20basevertexPt;
             Point3d baseptf20a60 = f20basevertexPt;
 
             // Get one adjacent vertex from vertex
-            adjacentVertexIndices = f20boundary.Vertices.GetConnectedVertices(f20basevertexIndex);
-            Point3d boundaryedgept = (Point3d)f20boundary.Vertices[adjacentVertexIndices[0]];
+            int[] adjacentedgeIndices = f20basevertex.EdgeIndices();
+            BrepEdge edge = f20boundary.Edges[adjacentedgeIndices[0]];
+            Point3d boundaryedgept = edge.EdgeCurve.PointAtEnd;
+            if (boundaryedgept == f20basevertexPt)
+            {
+                boundaryedgept = edge.EdgeCurve.PointAtStart;
+            }
             Transform xrot5 = Transform.Rotation(2 * Math.PI / 5, normalf20, f20basevertexPt);
             Point3d edgept2 = boundaryedgept;
             edgept2.Transform(xrot5);
@@ -2450,11 +2455,11 @@ namespace Aperiodic
             Transform xMoveInEdge = Transform.Translation(moveInEdge);
 
             // Add the first A6 tile
-            Mesh f20a60 = refA6.DuplicateMesh();
+            Brep f20a60 = refA6.DuplicateBrep();
             f20a60.Transform(xformf20a60);
             f20a60.Transform(xMoveInEdge);
 
-            // Add to mesh list
+            // Add to brep list
             listA6.Add(f20a60);
 
             // Add to basepts list
@@ -2469,13 +2474,17 @@ namespace Aperiodic
             plnsA6.Add(planef20a60s);
 
             // Find adjacent vertex on the A6 to boundaryedgept that is not the f20basevertexpt
-            int edgptPtIndex = GetClosestVertex(f20a60, boundaryedgept);
+            BrepVertex edgept = GetClosestVertex(f20a60, boundaryedgept);
+            int[] adjacentIndices = edgept.EdgeIndices();
             Point3d f20f200xpt = new Point3d();
-            // Get adjacent TOPOLOGY vertex points
-            int[] adjacentTopoIndices = f20a60.TopologyVertices.ConnectedTopologyVertices(edgptPtIndex);
-            for (int j = 0; j < adjacentTopoIndices.Length; j++)
+            for (int j = 0; j < adjacentIndices.Length; j++)
             {
-                Point3d f20a60adjacentPt = f20a60.TopologyVertices[adjacentTopoIndices[j]];
+                edge = f20a60.Edges[adjacentIndices[j]];
+                Point3d f20a60adjacentPt = edge.EdgeCurve.PointAtEnd;
+                if (f20a60adjacentPt == boundaryedgept)
+                {
+                    f20a60adjacentPt = edge.EdgeCurve.PointAtStart;
+                }
                 if (f20a60adjacentPt.DistanceTo(f20basevertexPt) > 0.0001)  // Use distance tolerance instead of !=
                 {
                     f20f200xpt = f20a60adjacentPt;
@@ -2484,7 +2493,7 @@ namespace Aperiodic
             }
 
             // Also prepare to add F20 tile here
-            Mesh f20f200 = refF20.DuplicateMesh();
+            Brep f20f200 = refF20.DuplicateBrep();
             Vector3d f20f200normal = boundaryedgept - f20basevertexPt;
             f20f200normal.Unitize();
             f20f200normal.Transform(xscaleEdgeLength);
@@ -2494,13 +2503,13 @@ namespace Aperiodic
             // Orient plane
             Vector3d f20f200xaxis = f20f200xpt - innerptf20f200;
             double anglef20f200 = GetSignedVectorAngle(planef20f200.XAxis, f20f200xaxis, planef20f200);
-            planef20f200.Rotate(anglef20f200 - Math.PI, f20f200normal, innerptf20f200); // Possibly need to change the Math.PI, check
+            planef20f200.Rotate(anglef20f200, f20f200normal, innerptf20f200);
 
             // Copy and transform the F20 mesh
             Transform xformf20f200 = Transform.PlaneToPlane(Plane.WorldXY, planef20f200);
             f20f200.Transform(xformf20f200);
 
-            // Add to mesh list
+            // Add to brep list
             listF20.Add(f20f200);
 
             Vector3d basef20f200 = f20f200normal;
@@ -2519,8 +2528,8 @@ namespace Aperiodic
             planef20f200.Rotate(-Math.PI / 2, planef20f200.Normal);
             plnsF20.Add(planef20f200);
 
-            Mesh f20a60copy = f20a60.DuplicateMesh();
-            Mesh f20f200copy = f20f200.DuplicateMesh();
+            Brep f20a60copy = f20a60.DuplicateBrep();
+            Brep f20f200copy = f20f200.DuplicateBrep();
             Point3d baseptf20f200copy = baseptf20f200;
             Plane planef20a60scopy = new Plane(planef20a60s);
             Plane planef20f200copy = new Plane(planef20f200);
@@ -2530,7 +2539,7 @@ namespace Aperiodic
                 // Rotate edgept around normal 2pi/5 degrees
                 f20a60copy.Transform(xrot5);
 
-                // Add to mesh list
+                // Add to brep list
                 listA6.Add(f20a60copy);
 
                 // Add to basepts list
@@ -2540,10 +2549,10 @@ namespace Aperiodic
                 planef20a60scopy.Transform(xrot5);
                 plnsA6.Add(planef20a60scopy);
 
-                f20a60copy = f20a60copy.DuplicateMesh();
+                f20a60copy = f20a60copy.DuplicateBrep();
                 f20f200copy.Transform(xrot5);
 
-                // Add to mesh list
+                // Add to brep list
                 listF20.Add(f20f200copy);
 
                 baseptf20f200copy.Transform(xrot5);
@@ -2556,8 +2565,8 @@ namespace Aperiodic
                 plnsF20.Add(planef20f200copy);
 
                 // Not sure if this is necessary
-                f20a60copy = f20a60copy.DuplicateMesh();
-                f20f200copy = f20f200copy.DuplicateMesh();
+                f20a60copy = f20a60copy.DuplicateBrep();
+                f20f200copy = f20f200copy.DuplicateBrep();
             }
 
             // Add the central triacontahedron
@@ -2569,10 +2578,10 @@ namespace Aperiodic
             k30baseflip.Rotate(Math.PI / 2 - rhombAcuteAngle, k30baseflip.Normal);
             planef20k300.Translate(moveInEdge);
             Transform xf20k300 = Transform.PlaneToPlane(k30baseflip, planef20k300);
-            Mesh f20k300 = refK30.DuplicateMesh();
+            Brep f20k300 = refK30.DuplicateBrep();
             f20k300.Transform(xf20k300);
 
-            // Add to mesh list
+            // Add to brep list
             listK30.Add(f20k300);
 
             // Add to basepts list
@@ -2584,12 +2593,6 @@ namespace Aperiodic
             plnsK30.Add(planef20k300s);
 
             // Place B12 tiles on the inward-facing faces
-            // Must call this before referencing mesh face normals
-            f20k300.FaceNormals.ComputeFaceNormals();
-            f20k300.UnifyNormals();
-
-            // Unify normals does not seem to work properly
-            // But we can use the centroid to calculate them in a consistent way
             AreaMassProperties ampf20k30 = AreaMassProperties.Compute(f20k300);
             Point3d centroidf20k30 = ampf20k30.Centroid;
 
@@ -2597,8 +2600,9 @@ namespace Aperiodic
             for (int i = 0; i < f20k300.Faces.Count; i++)
             {
                 // Get normal of face and see if it has positive dot product with normal
-                Point3d f20b12base = f20k300.Faces.GetFaceCenter(i);
-                //Vector3d f20b12normal = f20k300.FaceNormals[i];
+                BrepFace brepFace = f20k300.Faces[i];
+                AreaMassProperties amp = AreaMassProperties.Compute(brepFace);
+                Point3d f20b12base = amp.Centroid;
                 Vector3d f20b12normal = f20b12base - centroidf20k30;
                 double compareFaceNormal = Vector3d.Multiply(f20b12normal, normalf20);
                 if (compareFaceNormal >= -0.5)
@@ -2606,7 +2610,7 @@ namespace Aperiodic
                     // Add a b12 to the list using this face as a base
                     Plane planef20b12 = GetOrientedPlaneFromRhombicFace(f20k300, i, f20b12normal);
                     Transform xformf20b12 = Transform.PlaneToPlane(Plane.WorldXY, planef20b12);
-                    Mesh f20b12 = refB12.DuplicateMesh();
+                    Brep f20b12 = refB12.DuplicateBrep();
                     f20b12.Transform(xformf20b12);
 
                     // Add to mesh list
@@ -2625,7 +2629,7 @@ namespace Aperiodic
                     Transform xscale = Transform.Scale(Point3d.Origin, b12HeightRef);
                     pushPlane.Transform(xscale);
                     planef20b12.Translate(pushPlane);
-                    Mesh e = refK30.DuplicateMesh();
+                    Brep e = refK30.DuplicateBrep();
                     Transform xforme = Transform.PlaneToPlane(Plane.WorldXY, planef20b12);
                     e.Transform(xforme);
 
@@ -2644,23 +2648,25 @@ namespace Aperiodic
                 }
             }
 
-            // Must call this before referencing mesh vertex normals
-            f20k300.Normals.ComputeNormals();
-
             // Loop through vertices of the K30. Check for the ones with 3 neighbors that are also facing down
-            for (int i = 0; i < f20k300.TopologyVertices.Count; i++)
+            for (int i = 0; i < f20k300.Vertices.Count; i++)
             {
-                if (f20k300.TopologyVertices.ConnectedEdgesCount(i) == 3)
+                if (f20k300.Vertices[i].EdgeIndices().Length == 3)
                 {
-                    Vector3d normal = f20k300.Normals[i];
+                    Vector3d normal = GetVertexNormal(f20k300, i);
                     if (Vector3d.Multiply(normal, normalf20) > 0)
                     {
                         // Get plane center
-                        Point3d planeCenter = f20k300.TopologyVertices[i];
+                        Point3d planeCenter = f20k300.Vertices[i].Location;
 
-                        // Get orient point using adjacent  vertex
-                        int orientPtIndex = f20k300.TopologyVertices.ConnectedTopologyVertices(i)[0];
-                        Point3d orientX = (Point3d)f20k300.TopologyVertices[orientPtIndex];
+                        // Get orient point using adjacent vertex
+                        int[] connectedVertexIndices = f20k300.Vertices[i].EdgeIndices();
+                        edge = f20k300.Edges[connectedVertexIndices[0]];
+                        Point3d orientX = edge.EdgeCurve.PointAtEnd;
+                        if (orientX == planeCenter)
+                        {
+                            orientX = edge.EdgeCurve.PointAtStart;
+                        }
 
                         // First create a plane using center and normal vector
                         Plane planeUnoriented = new Plane(planeCenter, normal);
@@ -2679,10 +2685,10 @@ namespace Aperiodic
 
                         // Transform A6
                         Transform xformf20a61 = Transform.PlaneToPlane(Plane.WorldXY, planeOriented);
-                        Mesh f20a61 = refA6.DuplicateMesh();
+                        Brep f20a61 = refA6.DuplicateBrep();
                         f20a61.Transform(xformf20a61);
 
-                        // Add to mesh list
+                        // Add to brep list
                         listA6.Add(f20a61);
 
                         // Tranform basept
@@ -2696,15 +2702,21 @@ namespace Aperiodic
                         plnsA6.Add(planeOriented);
 
                         // Copy A6 3 more times...
-                        int furthestVertexIndex = GetFurthestVertex(f20a61, (Point3d)f20a61base);
-                        Point3d furthestVertexPt = (Point3d)f20a61.TopologyVertices[furthestVertexIndex];
+                        BrepVertex furthestVertex = GetFurthestVertex(f20a61, f20a61base);
+                        Point3d furthestVertexPt = furthestVertex.Location;
 
                         // Get adjacent vertex points
-                        adjacentVertexIndices = f20a61.Vertices.GetConnectedVertices(furthestVertexIndex);
-                        List<Point3d> edgePoints = new List<Point3d>();
+                        adjacentIndices = furthestVertex.EdgeIndices();
+                        edgePoints = new List<Point3d>();
                         for (int j = 0; j < 3; j++)
                         {
-                            edgePoints.Add((Point3d)f20a61.Vertices[adjacentVertexIndices[j]]);
+                            edge = f20a61.Edges[adjacentIndices[j]];
+                            Point3d adjacentPt = edge.EdgeCurve.PointAtEnd;
+                            if (adjacentPt == furthestVertexPt)
+                            {
+                                adjacentPt = edge.EdgeCurve.PointAtStart;
+                            }
+                            edgePoints.Add(adjacentPt);
                         }
 
                         // Get mirror planes
@@ -2715,14 +2727,14 @@ namespace Aperiodic
                         Transform xform1 = Transform.Mirror(plane1);
                         Transform xform2 = Transform.Mirror(plane2);
 
-                        // Make copies and add to mesh list
-                        Mesh copyc0 = f20a61.DuplicateMesh();
+                        // Make copies and add to brep list
+                        Brep copyc0 = f20a61.DuplicateBrep();
                         copyc0.Transform(xform0);
                         listA6.Add(copyc0);
-                        Mesh copyc1 = f20a61.DuplicateMesh();
+                        Brep copyc1 = f20a61.DuplicateBrep();
                         copyc1.Transform(xform1);
                         listA6.Add(copyc1);
-                        Mesh copyc2 = f20a61.DuplicateMesh();
+                        Brep copyc2 = f20a61.DuplicateBrep();
                         copyc2.Transform(xform2);
                         listA6.Add(copyc2);
 
@@ -2756,12 +2768,12 @@ namespace Aperiodic
                         // Get mirror plane from normal plane
                         Plane planeg = new Plane(furthestVertexPt, normal);
                         Transform xformg = Transform.Mirror(planeg);
-                        Mesh copyg = f20a61.DuplicateMesh();
+                        Brep copyg = f20a61.DuplicateBrep();
                         copyg.Transform(xformg);
                         Transform xrot180 = Transform.Rotation(Math.PI, normal, furthestVertexPt);
                         copyg.Transform(xrot180);
 
-                        // Add to mesh list
+                        // Add to brep list
                         listA6.Add(copyg);
 
                         // Copy base pt
@@ -2781,15 +2793,21 @@ namespace Aperiodic
                         {
                             // Next we'll mirror these ones 3 more times on the outer faces using the method above
                             // Get furthest vertex of the copy
-                            furthestVertexIndex = GetFurthestVertex(copyg, (Point3d)centroidf20k30);
-                            furthestVertexPt = copyg.TopologyVertices[furthestVertexIndex];
+                            furthestVertex = GetFurthestVertex(copyg, centroidf20k30);
+                            furthestVertexPt = furthestVertex.Location;
 
                             // Get adjacent vertex points
-                            adjacentVertexIndices = copyg.Vertices.GetConnectedVertices(furthestVertexIndex);
+                            adjacentIndices = furthestVertex.EdgeIndices();
                             edgePoints = new List<Point3d>();
                             for (int j = 0; j < 3; j++)
                             {
-                                edgePoints.Add((Point3d)copyg.Vertices[adjacentVertexIndices[j]]);
+                                edge = copyg.Edges[adjacentIndices[j]];
+                                Point3d adjacentPt = edge.EdgeCurve.PointAtEnd;
+                                if (adjacentPt == furthestVertexPt)
+                                {
+                                    adjacentPt = edge.EdgeCurve.PointAtStart;
+                                }
+                                edgePoints.Add(adjacentPt);
                             }
 
                             // Get mirror planes
@@ -2801,13 +2819,13 @@ namespace Aperiodic
                             xform2 = Transform.Mirror(plane2);
 
                             // Make copies
-                            Mesh copyg0 = copyg.DuplicateMesh();
+                            Brep copyg0 = copyg.DuplicateBrep();
                             copyg0.Transform(xform0);
                             listA6.Add(copyg0);
-                            Mesh copyg1 = copyg.DuplicateMesh();
+                            Brep copyg1 = copyg.DuplicateBrep();
                             copyg1.Transform(xform1);
                             listA6.Add(copyg1);
-                            Mesh copyg2 = copyg.DuplicateMesh();
+                            Brep copyg2 = copyg.DuplicateBrep();
                             copyg2.Transform(xform2);
                             listA6.Add(copyg2);
 
@@ -2837,18 +2855,25 @@ namespace Aperiodic
 
                             // Finally for each of these 3 copies we want to mirror again 2 more times (using the 2 most outer faces of each)
                             // Or we just mirror the 2 and then rotate around the 3-fold axis
-                            Mesh copyg00 = copyg0.DuplicateMesh();
-                            Mesh copyg01 = copyg0.DuplicateMesh();
+                            Brep copyg00 = copyg0.DuplicateBrep();
+                            Brep copyg01 = copyg0.DuplicateBrep();
 
                             // Again, get furthest vertex/edges
-                            furthestVertexIndex = GetFurthestVertex(copyg0, (Point3d)centroidf20k30);
+                            furthestVertex = GetFurthestVertex(copyg0, centroidf20k30);
+                            furthestVertexPt = furthestVertex.Location;
 
                             // Get adjacent vertex points
-                            adjacentVertexIndices = copyg0.Vertices.GetConnectedVertices(furthestVertexIndex);
+                            adjacentIndices = furthestVertex.EdgeIndices();
                             edgePoints = new List<Point3d>();
                             for (int j = 0; j < 3; j++)
                             {
-                                edgePoints.Add((Point3d)copyg0.Vertices[adjacentVertexIndices[j]]);
+                                edge = copyg0.Edges[adjacentIndices[j]];
+                                Point3d adjacentPt = edge.EdgeCurve.PointAtEnd;
+                                if (adjacentPt == furthestVertexPt)
+                                {
+                                    adjacentPt = edge.EdgeCurve.PointAtStart;
+                                }
+                                edgePoints.Add(adjacentPt);
                             }
 
                             // Identify furthest edgepoint - we need the two mirror planes adjacent to it
@@ -2905,10 +2930,10 @@ namespace Aperiodic
                             plnsA6.Add(g01baseplane);
 
                             // Finally copy and rotate to make 4 more (this completes step (g) of the deflation)
-                            Mesh copyg10 = copyg00.DuplicateMesh();
-                            Mesh copyg11 = copyg01.DuplicateMesh();
-                            Mesh copyg20 = copyg00.DuplicateMesh();
-                            Mesh copyg21 = copyg01.DuplicateMesh();
+                            Brep copyg10 = copyg00.DuplicateBrep();
+                            Brep copyg11 = copyg01.DuplicateBrep();
+                            Brep copyg20 = copyg00.DuplicateBrep();
+                            Brep copyg21 = copyg01.DuplicateBrep();
 
                             Transform rotate120 = Transform.Rotation(2 * Math.PI / 3, normal, planeCenter);
                             Transform rotate240 = Transform.Rotation(4 * Math.PI / 3, normal, planeCenter);
@@ -2917,7 +2942,7 @@ namespace Aperiodic
                             copyg20.Transform(rotate240);
                             copyg21.Transform(rotate240);
 
-                            // Add to mesh list
+                            // Add to brep list
                             listA6.Add(copyg10);
                             listA6.Add(copyg11);
                             listA6.Add(copyg20);
@@ -2955,34 +2980,40 @@ namespace Aperiodic
                         {
                             // Instead of mirroring, we rotate around an axis to get 5 copies total
                             // Get edge pts
-                            furthestVertexIndex = GetFurthestVertex(copyg, (Point3d)centroidf20k30);
-                            furthestVertexPt = copyg.TopologyVertices[furthestVertexIndex];
+                            furthestVertex = GetFurthestVertex(copyg, centroidf20k30);
+                            furthestVertexPt = furthestVertex.Location;
 
                             // Get rotation axis by finding edge with positive dot product to f20basevector
-                            adjacentVertexIndices = copyg.Vertices.GetConnectedVertices(furthestVertexIndex);
+                            adjacentIndices = furthestVertex.EdgeIndices();
                             Point3d axisPoint = new Point3d();
                             Vector3d axis = new Vector3d();
                             for (int j = 0; j < 3; j++)
                             {
-                                axis = copyg.Vertices[adjacentVertexIndices[j]] - furthestVertexPt;
+                                edge = copyg.Edges[adjacentIndices[j]];
+                                Point3d adjacentPt = edge.EdgeCurve.PointAtEnd;
+                                if (adjacentPt == furthestVertexPt)
+                                {
+                                    adjacentPt = edge.EdgeCurve.PointAtStart;
+                                }
+                                axis = adjacentPt - furthestVertexPt;
                                 if (Vector3d.Multiply(axis, normalf20) > 0)
                                 {
-                                    axisPoint = copyg.Vertices[adjacentVertexIndices[j]];
+                                    axisPoint = adjacentPt;
                                 }
                             }
                             axis = axisPoint - furthestVertexPt;
 
                             // Rotate copyg about the axis
                             Transform xformrotatef20a6g = Transform.Rotation(2 * Math.PI / 5, axis, axisPoint);
-                            Mesh copyf20a6g = copyg.DuplicateMesh();
+                            Brep copyf20a6g = copyg.DuplicateBrep();
                             Plane copyf20a6gplane = new Plane(copygplane);
                             for (int j = 0; j < 4; j++)
                             {
                                 copyf20a6g.Transform(xformrotatef20a6g);
 
-                                // Add to mesh list
+                                // Add to brep list
                                 listA6.Add(copyf20a6g);
-                                copyf20a6g = copyf20a6g.DuplicateMesh();
+                                copyf20a6g = copyf20a6g.DuplicateBrep();
 
                                 // Add to basepts list
                                 ptsA6.Add(gbasept);
@@ -2996,21 +3027,27 @@ namespace Aperiodic
                 }
 
                 // Five-fold vertices
-                else if (f20k300.TopologyVertices.ConnectedEdgesCount(i) == 5)
+                else if (f20k300.Vertices[i].EdgeIndices().Length == 5)
                 {
-                    Vector3d normal = f20k300.Normals[i];
+                    Vector3d normal = GetVertexNormal(f20k300, i);
                     double vectoreComparef20k30 = Vector3d.Multiply(normal, normalf20);
 
                     if (vectoreComparef20k30 > 0.8)
                     {
                         // Use the plane center and the orientation point
-                        Point3d planeCenter5 = (Point3d)f20k300.TopologyVertices[i];
+                        Point3d planeCenter5 = f20k300.Vertices[i].Location;
+
                         // Get orient point using adjacent vertex
-                        int orientPtIndex5 = f20k300.TopologyVertices.ConnectedTopologyVertices(i)[0];
-                        Point3d orientX5 = (Point3d)f20k300.TopologyVertices[orientPtIndex5];
+                        adjacentedgeIndices = f20k300.Vertices[i].EdgeIndices();
+                        BrepEdge adjacentedge = f20k300.Edges[adjacentedgeIndices[0]];
+                        Point3d orientX5 = adjacentedge.EdgeCurve.PointAtEnd;
+                        if (orientX5 == planeCenter5)
+                        {
+                            orientX5 = adjacentedge.EdgeCurve.PointAtStart;
+                        }
 
                         // First create a plane using center and normal vector
-                        Vector3d normal5 = f20k300.Normals[i];
+                        Vector3d normal5 = normal;
                         Plane fiveFoldPlaneUnoriented = new Plane(planeCenter5, normal5);
 
                         // UPDATED CODE
@@ -3026,15 +3063,15 @@ namespace Aperiodic
 
                         // Transform 6 F20 to these 5-fold rotational axes
                         Transform xformFive = Transform.PlaneToPlane(Plane.WorldXY, fiveFoldPlaneUnoriented);
-                        Mesh copyf = refF20.DuplicateMesh();
+                        Brep copyf = refF20.DuplicateBrep();
                         copyf.Transform(xformFive);
 
-                        // Add to mesh list
+                        // Add to brep list
                         listF20.Add(copyf);
 
                         // Get base pts - these should be on the outside - get furthest vertex
-                        int furthestVertexIndex = GetFurthestVertex(copyf, (Point3d)planeCenter5);
-                        Point3d furthestVertexPt = (Point3d)copyf.TopologyVertices[furthestVertexIndex];
+                        BrepVertex furthestVertex = GetFurthestVertex(copyf, planeCenter5);
+                        Point3d furthestVertexPt = furthestVertex.Location;
                         Point3d baseptf = furthestVertexPt;
 
                         // Add to basepts list
@@ -3056,8 +3093,13 @@ namespace Aperiodic
                         Vector3d normalf20a6h = baseptf - planeCenter5;
 
                         // Get one adjacent vertex from vertex
-                        adjacentVertexIndices = copyf.Vertices.GetConnectedVertices(furthestVertexIndex);
-                        boundaryedgept = (Point3d)copyf.Vertices[adjacentVertexIndices[0]];
+                        adjacentIndices = furthestVertex.EdgeIndices();
+                        edge = copyf.Edges[adjacentIndices[0]];
+                        boundaryedgept = edge.EdgeCurve.PointAtEnd;
+                        if (boundaryedgept == furthestVertexPt)
+                        {
+                            boundaryedgept = edge.EdgeCurve.PointAtStart;
+                        }
                         xrot5 = Transform.Rotation(2 * Math.PI / 5, normalf20a6h, baseptf);
                         edgept2 = boundaryedgept;
                         edgept2.Transform(xrot5);
@@ -3067,10 +3109,10 @@ namespace Aperiodic
                         Transform xformf20a6h = Transform.PlaneToPlane(a6base, planef20a6h);
 
                         // Add the first A6 tile
-                        Mesh f20a6h = refA6.DuplicateMesh();
+                        Brep f20a6h = refA6.DuplicateBrep();
                         f20a6h.Transform(xformf20a6h);
 
-                        // Add to mesh list
+                        // Add to brep list
                         listA6.Add(f20a6h);
 
                         Point3d baseptf20a6h = Point3d.Origin;
@@ -3087,11 +3129,10 @@ namespace Aperiodic
                         // Get xpt for next F20 tile using the A6 tile
                         // Find adjacent vertex to edgept that is not the furthestVertexPt
                         Point3d baseptf20f20h = boundaryedgept + pushPlane5;
-                        int baseptf20f20hIndex = GetClosestVertex(f20a6h, (Point3d)baseptf20f20h);
                         Point3d f20f20hxpt = boundaryedgept;
 
                         // Also prepare to add F20 tile here
-                        Mesh f20f20h = refF20.DuplicateMesh();
+                        Brep f20f20h = refF20.DuplicateBrep();
                         Vector3d f20f20hnormal = boundaryedgept - baseptf;
                         Plane planef20f20h = new Plane(baseptf20f20h, f20f20hnormal);
                         Vector3d f20f20hxaxis = f20f20hxpt - baseptf20f20h;
@@ -3111,9 +3152,9 @@ namespace Aperiodic
                             plnsF20.Add(planef20f20h);
                         }
 
-                        Mesh f20a6hcopy = f20a6h.DuplicateMesh();
+                        Brep f20a6hcopy = f20a6h.DuplicateBrep();
                         Point3d baseptf20a6hcopy = baseptf20a6h;
-                        Mesh f20f20hcopy = f20f20h.DuplicateMesh();
+                        Brep f20f20hcopy = f20f20h.DuplicateBrep();
                         Point3d baseptf20f20hcopy = baseptf20f20h;
                         Vector3d f20f20hnormalcopy = f20f20hnormal;
                         Plane baseplnf20a6hcopy = baseplnf20a6h;
@@ -3152,21 +3193,26 @@ namespace Aperiodic
                                 plnsF20.Add(baseplnf20f20hcopy);
                             }
 
-                            f20a6hcopy = f20a6hcopy.DuplicateMesh();
-                            f20f20hcopy = f20f20hcopy.DuplicateMesh();
+                            f20a6hcopy = f20a6hcopy.DuplicateBrep();
+                            f20f20hcopy = f20f20hcopy.DuplicateBrep();
                         }
 
                         // A6 array of 5 on the inner side the F20
                         // Get closest vertex
-                        int closestVertexIndex = GetClosestVertex(copyf, (Point3d)planeCenter5);
-                        Point3d closestVertexPt = (Point3d)copyf.TopologyVertices[closestVertexIndex];
+                        BrepVertex closestVertex = GetClosestVertex(copyf, planeCenter5);
+                        Point3d closestVertexPt = closestVertex.Location;
 
                         // Get one adjacent vertex
-                        adjacentVertexIndices = copyf.Vertices.GetConnectedVertices(closestVertexIndex);
-                        boundaryedgept = (Point3d)copyf.Vertices[adjacentVertexIndices[0]];
+                        adjacentIndices = closestVertex.EdgeIndices();
+                        edge = copyf.Edges[adjacentIndices[0]];
+                        boundaryedgept = edge.PointAtEnd;
+                        if (boundaryedgept == closestVertexPt)
+                        {
+                            boundaryedgept = edge.PointAtStart;
+                        }
 
                         // Start with one edge, then rotate around the plane to get the others in order
-                        List<Point3d> edgePoints = new List<Point3d>();
+                        edgePoints = new List<Point3d>();
                         edgePoints.Add(boundaryedgept);
                         for (int j = 1; j < 5; j++)
                         {
@@ -3191,19 +3237,19 @@ namespace Aperiodic
                         Transform xh4 = Transform.PlaneToPlane(a6base, planeh4);
 
                         // Make copies and transform
-                        Mesh copyh0 = refA6.DuplicateMesh();
+                        Brep copyh0 = refA6.DuplicateBrep();
                         copyh0.Transform(xh0);
 
-                        Mesh copyh1 = refA6.DuplicateMesh();
+                        Brep copyh1 = refA6.DuplicateBrep();
                         copyh1.Transform(xh1);
 
-                        Mesh copyh2 = refA6.DuplicateMesh();
+                        Brep copyh2 = refA6.DuplicateBrep();
                         copyh2.Transform(xh2);
 
-                        Mesh copyh3 = refA6.DuplicateMesh();
+                        Brep copyh3 = refA6.DuplicateBrep();
                         copyh3.Transform(xh3);
 
-                        Mesh copyh4 = refA6.DuplicateMesh();
+                        Brep copyh4 = refA6.DuplicateBrep();
                         copyh4.Transform(xh4);
 
                         // Add to output
@@ -3214,7 +3260,7 @@ namespace Aperiodic
                         listA6.Add(copyh4);
 
                         // Simultaneously find A6 for next step
-                        Mesh f20a62 = copyh0;
+                        Brep f20a62 = copyh0;
                         Point3d baseptf20a62 = baseptf20a6h;
                         Plane baseplnf20a62 = baseplnf20a6h;
 
@@ -3315,16 +3361,19 @@ namespace Aperiodic
                         // But first check it is not the top vertex...
                         if (vectoreComparef20k30 < 5) // Sketchy but works for now
                         {
-                            f20a62.FaceNormals.ComputeFaceNormals();
                             int closeFaceIndex = GetClosestFace(f20a62, f20boundarybase);
-                            Vector3d f20a62facenormal = f20a62.FaceNormals[closeFaceIndex];
-                            Point3d f20a62facecenter = f20a62.Faces.GetFaceCenter(closeFaceIndex);
+
+                            // Get center and normal vector of the current face
+                            BrepFace brepFace = f20a62.Faces[closeFaceIndex];
+                            AreaMassProperties ampFace = AreaMassProperties.Compute(brepFace);
+                            Point3d f20a62facecenter = ampFace.Centroid;
+                            Vector3d f20a62facenormal = brepFace.NormalAt(0.5, 0.5);
                             Plane planef20a63 = new Plane(f20a62facecenter, f20a62facenormal);
                             Transform xmirrorf20a63 = Transform.Mirror(planef20a63);
-                            Mesh f20a63 = f20a62.DuplicateMesh();
+                            Brep f20a63 = f20a62.DuplicateBrep();
                             f20a63.Transform(xmirrorf20a63);
 
-                            // Add to mesh list
+                            // Add to brep list
                             listA6.Add(f20a63);
 
                             // Add to basepts list
@@ -3341,13 +3390,15 @@ namespace Aperiodic
 
                             // Get furthest face of f20a63 to get new mirror
                             int farFaceIndex = GetFurthestFace(f20a63, f20a62facecenter);
-                            Point3d f20a63facecenter = f20a63.Faces.GetFaceCenter(farFaceIndex);
+                            brepFace = f20a63.Faces[farFaceIndex];
+                            ampFace = AreaMassProperties.Compute(brepFace);
+                            Point3d f20a63facecenter = ampFace.Centroid;
                             Plane planef20a64 = new Plane(f20a63facecenter, f20a62facenormal);
                             Transform xmirrorf20a64 = Transform.Mirror(planef20a64);
-                            Mesh f20a64 = f20a63.DuplicateMesh();
+                            Brep f20a64 = f20a63.DuplicateBrep();
                             f20a64.Transform(xmirrorf20a64);
 
-                            // Add to mesh list
+                            // Add to brep list
                             listA6.Add(f20a64);
 
                             // Add to basepts list
@@ -3368,22 +3419,41 @@ namespace Aperiodic
 
                             // From this, get vertex base pt
                             // and find two adjacent faces that are not planef20a64 to use as mirrors
-                            int baseVertexIndex = GetFurthestVertex(f20a64, (Point3d)baseptf20a64);
-                            int[] adjacentFacesIndices = f20a64.Vertices.GetVertexFaces(baseVertexIndex);
-                            f20a64.FaceNormals.ComputeFaceNormals();
+                            BrepVertex baseVertex = GetFurthestVertex(f20a64, baseptf20a64);
+                            List<int> adjacentFaceIndices = new List<int>();
+                            foreach (int edgeIndex in baseVertex.EdgeIndices())
+                            {
+                                edge = f20a64.Edges[edgeIndex];
+                                int[] faces = edge.AdjacentFaces();
+
+                                if (faces != null)
+                                {
+                                    foreach (int faceIndex in faces)
+                                    {
+                                        // Add unique face indices
+                                        if (!adjacentFaceIndices.Contains(faceIndex))
+                                        {
+                                            adjacentFaceIndices.Add(faceIndex);
+                                        }
+                                    }
+                                }
+                            }
+
                             for (int j = 0; j < 3; j++)
                             {
-                                int faceIndex = adjacentFacesIndices[j];
-                                Point3d f20a64facecenter = f20a64.Faces.GetFaceCenter(faceIndex);
+                                int faceIndex = adjacentFaceIndices[j];
+                                brepFace = f20a64.Faces[faceIndex];
+                                ampFace = AreaMassProperties.Compute(brepFace);
+                                Point3d f20a64facecenter = ampFace.Centroid;
                                 if (planef20a64.DistanceTo(f20a64facecenter) > 0.00001) // tolerance issue - causing one additional A6 to be created if only using > 0
                                 {
-                                    Vector3d f20a64facenormal = f20a64.FaceNormals[faceIndex];
+                                    Vector3d f20a64facenormal = brepFace.NormalAt(0.5, 0.5);
                                     Plane planef20a65 = new Plane(f20a64facecenter, f20a64facenormal);
                                     Transform xmirrorf20a65 = Transform.Mirror(planef20a65);
-                                    Mesh f20a65 = f20a64.DuplicateMesh();
+                                    Brep f20a65 = f20a64.DuplicateBrep();
                                     f20a65.Transform(xmirrorf20a65);
 
-                                    // Add to mesh list
+                                    // Add to brep list
                                     listA6.Add(f20a65);
 
                                     // Add to basepts list
@@ -4510,10 +4580,10 @@ namespace Aperiodic
             return newpln;
         }
 
-        public static bool CheckIfA6BaseVectorIsAcute(Mesh a6tocheck, Point3d basept, Vector3d vec)
+        public static bool CheckIfA6BaseVectorIsAcute(Brep a6tocheck, Point3d basept, Vector3d vec)
         {
-            int farVertexIndex = GetFurthestVertex(a6tocheck, (Point3d)basept);
-            Point3d farPt = (Point3d)a6tocheck.TopologyVertices[farVertexIndex];
+            BrepVertex farVertex = GetFurthestVertex(a6tocheck, basept);
+            Point3d farPt = farVertex.Location;
             Vector3d a6basevector = farPt - basept;
             if (Vector3d.VectorAngle(vec, a6basevector) < Math.PI / 2)
             {
