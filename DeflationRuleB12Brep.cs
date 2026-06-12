@@ -836,8 +836,8 @@ namespace Aperiodic
                             edgept = edge.EdgeCurve.PointAtStart;
                         }
 
-                            // Start with one edge, then rotate around the plane to get the others in order
-                            edgePoints = new List<Point3d>();
+                        // Start with one edge, then rotate around the plane to get the others in order
+                        edgePoints = new List<Point3d>();
                         edgePoints.Add(edgept);
                         for (int j = 1; j < 5; j++)
                         {
