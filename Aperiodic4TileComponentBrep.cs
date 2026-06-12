@@ -235,7 +235,6 @@ namespace Aperiodic
 
             Brep brep = refA6.DuplicateBrep();
             Point3d basept = Point3d.Origin;
-            Plane basepln = Plane.WorldXY;
 
             // Get the centroid of the geometry
             AreaMassProperties ampBrep = AreaMassProperties.Compute(brep);
@@ -249,8 +248,6 @@ namespace Aperiodic
             brep.Translate(inflateVec);
             // Translate the basept to the new scaled location - consistent with the brep itself, so further operations on the base pts can recurse well
             basept += inflateVec;
-            Transform scaleInflate = Transform.Scale(Point3d.Origin, DeflationScaleFactor);
-            basepln.Transform(scaleInflate);
 
             // Set up smaller output lists
             List<Brep> listA6 = new List<Brep>();
@@ -265,51 +262,6 @@ namespace Aperiodic
             List<Plane> plnsB12 = new List<Plane>();
             List<Plane> plnsF20 = new List<Plane>();
             List<Plane> plnsK30 = new List<Plane>();
-
-            // Set up base orientation for A6 transformation later in step (h)
-            // (Alternatively we could change the base position of the refA6 geometry but this might mean rewriting everything)
-            // Get base plane for orientation transform using refA6 leftmost vertex as center and adjacent edges below it
-            BrepVertex leftmostVertex = refA6.Vertices[0];
-            double minX = 0;
-            foreach (BrepVertex a6v in refA6.Vertices)
-            {
-                double currentX = a6v.Location.X;
-                if (currentX < minX)
-                {
-                    leftmostVertex = a6v;
-                    minX = currentX;
-                }
-            }
-
-            Point3d baseCenter = leftmostVertex.Location;
-
-            int[] edgeIndices = leftmostVertex.EdgeIndices();
-            List<Point3d> edgePoints = new List<Point3d>();
-            for (int j = 0; j < 3; j++)
-            {
-                BrepEdge edgeh = refA6.Edges[edgeIndices[j]];
-                Point3d edgepth = edgeh.EdgeCurve.PointAtEnd;
-                if (edgepth == baseCenter)
-                {
-                    edgepth = edgeh.EdgeCurve.PointAtStart;
-                }
-                // We only want two of the vertices, the ones not at x = 0, y = 0
-                if (edgepth.X < -0.0001) edgePoints.Add(edgepth);
-            }
-
-            // Order edgepts to set up the plane a6base
-            Plane a6base;
-            if (edgePoints[0].Y < edgePoints[1].Y)
-            {
-                a6base = new Plane(baseCenter, edgePoints[0], edgePoints[1]);
-            }
-            else
-            {
-                a6base = new Plane(baseCenter, edgePoints[1], edgePoints[0]);
-            }
-
-            // Set up base orientation for F20 transformation later in step (k30-i)
-            Plane f20base = new Plane(Point3d.Origin, -Vector3d.XAxis, -Vector3d.YAxis);
 
             // Set up base orientation for K30 transformation in step (a6-000)
             Point3d k30basecenter = GetClosestVertex(refK30, new Point3d(0, -1, 0)).Location;
@@ -359,8 +311,8 @@ namespace Aperiodic
             ptsA6.Add(basepta6a601);
 
             // Add to baseplns list
-            Plane baseplna6a600 = new Plane(basepln);
-            Plane baseplna6a601 = new Plane(basepln);
+            Plane baseplna6a600 = new Plane(Plane.WorldXY);
+            Plane baseplna6a601 = new Plane(Plane.WorldXY);
             baseplna6a601.Translate(moveFarCopy);
             baseplna6a601.Translate(moveFarCopy);
             plnsA6.Add(baseplna6a600);
@@ -370,9 +322,9 @@ namespace Aperiodic
             BrepVertex closeCopyInner = GetFurthestVertex(a6a600, basepta6a600);
 
             // Get orientation planes for the K30
-            edgeIndices = closeCopyInner.EdgeIndices();
+            int[] edgeIndices = closeCopyInner.EdgeIndices();
             Point3d closeCopyInnerPt = closeCopyInner.Location;
-            edgePoints = new List<Point3d>();
+            List<Point3d> edgePoints = new List<Point3d>();
             for (int j = 0; j < 3; j++)
             {
                 BrepEdge edge = a6a600.Edges[edgeIndices[j]];
@@ -1063,22 +1015,6 @@ namespace Aperiodic
             // Get length reference (edge length of original triacontahedron)
             double edgeLengthRef = refK30.Edges[0].PointAtEnd.DistanceTo(refK30.Edges[0].PointAtStart);
 
-            Brep brep = refB12.DuplicateBrep();
-            Point3d basept = Point3d.Origin;
-            Plane basepln = Plane.WorldXY;
-
-            // Get the centroid of the geometry
-            AreaMassProperties ampBrep = AreaMassProperties.Compute(brep);
-            Point3d centroidBrep = ampBrep.Centroid;
-            // Create a vector using the centroid location
-            Vector3d centroidVec = new Vector3d(centroidBrep);
-            // Scale the vector by the deflationScalefactor to get the new centroid location
-            // Subtract the original centroidVec to get the translation vector
-            Vector3d inflateVec = centroidVec * DeflationScaleFactor - centroidVec;
-            Transform scaleInflate = Transform.Scale(Point3d.Origin, DeflationScaleFactor);
-            basepln.Transform(scaleInflate);
-            basepln.Translate(inflateVec);
-
             // Set up smaller output lists
             List<Brep> listA6 = new List<Brep>();
             List<Brep> listB12 = new List<Brep>();
@@ -1093,55 +1029,14 @@ namespace Aperiodic
             List<Plane> plnsF20 = new List<Plane>();
             List<Plane> plnsK30 = new List<Plane>();
 
-            // Set up base orientation for A6 transformation later in step (h)
-            // (Alternatively we could change the base position of the refA6 geometry but this might mean rewriting everything)
-            // Get base plane for orientation transform using refA6 leftmost vertex as center and adjacent edges below it
-            BrepVertex leftmostVertex = refA6.Vertices[0];
-            double minX = 0;
-            foreach (BrepVertex a6v in refA6.Vertices)
-            {
-                double currentX = a6v.Location.X;
-                if (currentX < minX)
-                {
-                    leftmostVertex = a6v;
-                    minX = currentX;
-                }
-            }
-
-            Point3d baseCenter = leftmostVertex.Location;
-
-            int[] edgeIndices = leftmostVertex.EdgeIndices();
-            List<Point3d> edgePoints = new List<Point3d>();
-            for (int j = 0; j < 3; j++)
-            {
-                BrepEdge edgeh = refA6.Edges[edgeIndices[j]];
-                Point3d edgepth = edgeh.EdgeCurve.PointAtEnd;
-                if (edgepth == baseCenter)
-                {
-                    edgepth = edgeh.EdgeCurve.PointAtStart;
-                }
-                // We only want two of the vertices, the ones not at x = 0, y = 0
-                if (edgepth.X < -0.0001) edgePoints.Add(edgepth);
-            }
-
-            // Order edgepts to set up the plane a6base
-            Plane a6base;
-            if (edgePoints[0].Y < edgePoints[1].Y)
-            {
-                a6base = new Plane(baseCenter, edgePoints[0], edgePoints[1]);
-            }
-            else
-            {
-                a6base = new Plane(baseCenter, edgePoints[1], edgePoints[0]);
-            }
+            Plane a6base = SetUpA6BasePlane(refA6);
 
             // Scale up B12 unit to get general boundaries of the inflated shapes
             // Scale center point of geometry by a factor of golden ratio^3
-            //Transform xformScaleB12 = Transform.Scale(centroidB12, deflationScaleFactor);
             Transform xformScaleB12 = Transform.Scale(Point3d.Origin, DeflationScaleFactor);
-            Brep b12boundary = brep.DuplicateBrep();
+            Brep b12boundary = refB12.DuplicateBrep();
             b12boundary.Transform(xformScaleB12);
-            Point3d boundarybasept = new Point3d(basept);
+            Point3d boundarybasept = new Point3d(Point3d.Origin);
             boundarybasept.Transform(xformScaleB12);
 
             // Find top face
@@ -1300,8 +1195,8 @@ namespace Aperiodic
                                 Point3d furthestVertexPt = furthestVertex.Location;
 
                                 // Get adjacent vertex points
-                                edgeIndices = furthestVertex.EdgeIndices();
-                                edgePoints = new List<Point3d>();
+                                int[] edgeIndices = furthestVertex.EdgeIndices();
+                                List<Point3d> edgePoints = new List<Point3d>();
                                 for (int k = 0; k < edgeIndices.Length; k++)
                                 {
                                     BrepEdge edge = b12a61.Edges[edgeIndices[k]];
@@ -1399,7 +1294,7 @@ namespace Aperiodic
                         Point3d planeCenter = b12k300.Vertices[i].Location;
 
                         // Get orient point using adjacent  vertex
-                        edgeIndices = b12k300.Vertices[i].EdgeIndices();
+                        int[] edgeIndices = b12k300.Vertices[i].EdgeIndices();
                         BrepEdge firstEdge = b12k300.Edges[edgeIndices[0]];
                         Point3d orientX = (firstEdge.StartVertex.Location == planeCenter) ? firstEdge.EndVertex.Location : firstEdge.StartVertex.Location;
 
@@ -1497,7 +1392,6 @@ namespace Aperiodic
 
                             // Get adjacent vertex points and find top adjacent vertex
                             edgeIndices = outerVertex.EdgeIndices();
-                            edgePoints = new List<Point3d>();
                             int topAdjacentVertexIndex = 0;
                             Point3d topAdjacentVertex = new Point3d();
                             for (int k = 0; k < edgeIndices.Length; k++)
@@ -1571,7 +1465,7 @@ namespace Aperiodic
 
                         // Get adjacent vertex points
                         edgeIndices = furthestVertex.EdgeIndices();
-                        edgePoints = new List<Point3d>();
+                        List<Point3d> edgePoints = new List<Point3d>();
                         for (int k = 0; k < edgeIndices.Length; k++)
                         {
                             BrepEdge edge = b12a60.Edges[edgeIndices[k]];
@@ -1640,7 +1534,7 @@ namespace Aperiodic
                         Point3d planeCenter5 = b12k300.Vertices[i].Location;
 
                         // Get orient point using adjacent  vertex
-                        edgeIndices = b12k300.Vertices[i].EdgeIndices();
+                        int[] edgeIndices = b12k300.Vertices[i].EdgeIndices();
                         BrepEdge firstEdge = b12k300.Edges[edgeIndices[0]];
                         Point3d orientX5 = (firstEdge.StartVertex.Location == planeCenter5) ? firstEdge.EndVertex.Location : firstEdge.StartVertex.Location;
 
@@ -1707,7 +1601,7 @@ namespace Aperiodic
                         }
 
                         // Start with one edge, then rotate around the plane to get the others in order
-                        edgePoints = new List<Point3d>();
+                        List<Point3d> edgePoints = new List<Point3d>();
                         edgePoints.Add(edgept);
                         for (int j = 1; j < 5; j++)
                         {
@@ -1910,7 +1804,7 @@ namespace Aperiodic
                         Vector3d b12a62normal = GetVertexNormal(b12k300, i);
 
                         // Start with one edge, then rotate around the plane to get the others in order
-                        edgePoints = new List<Point3d>();
+                        List<Point3d> edgePoints = new List<Point3d>();
                         edgePoints.Add(edgept);
                         for (int j = 1; j < 5; j++)
                         {
@@ -2368,22 +2262,6 @@ namespace Aperiodic
             // Get angle reference
             double rhombAcuteAngle = 2 * Math.Atan(1 / GoldenRatio);
 
-            Brep brep = refF20.DuplicateBrep();
-            Point3d basept = Point3d.Origin;
-            Plane basepln = Plane.WorldXY;
-
-            // Get the centroid of the geometry
-            AreaMassProperties ampBrep = AreaMassProperties.Compute(brep);
-            Point3d centroidBrep = ampBrep.Centroid;
-            // Create a vector using the centroid location
-            Vector3d centroidVec = new Vector3d(centroidBrep);
-            // Scale the vector by the deflationScalefactor to get the new centroid location
-            // Subtract the original centroidVec to get the translation vector
-            Vector3d inflateVec = centroidVec * DeflationScaleFactor - centroidVec;
-            Transform scaleInflate = Transform.Scale(Point3d.Origin, DeflationScaleFactor);
-            basepln.Transform(scaleInflate);
-            basepln.Translate(inflateVec);
-
             // Set up smaller output lists
             List<Brep> listA6 = new List<Brep>();
             List<Brep> listB12 = new List<Brep>();
@@ -2398,47 +2276,7 @@ namespace Aperiodic
             List<Plane> plnsF20 = new List<Plane>();
             List<Plane> plnsK30 = new List<Plane>();
 
-            // Set up base orientation for A6 transformation later in step (h)
-            // (Alternatively we could change the base position of the refA6 geometry but this might mean rewriting everything)
-            // Get base plane for orientation transform using refA6 leftmost vertex as center and adjacent edges below it
-            BrepVertex leftmostVertex = refA6.Vertices[0];
-            double minX = 0;
-            foreach (BrepVertex a6v in refA6.Vertices)
-            {
-                double currentX = a6v.Location.X;
-                if (currentX < minX)
-                {
-                    leftmostVertex = a6v;
-                    minX = currentX;
-                }
-            }
-
-            Point3d baseCenter = leftmostVertex.Location;
-
-            int[] edgeIndices = leftmostVertex.EdgeIndices();
-            List<Point3d> edgePoints = new List<Point3d>();
-            for (int j = 0; j < 3; j++)
-            {
-                BrepEdge edgeh = refA6.Edges[edgeIndices[j]];
-                Point3d edgepth = edgeh.EdgeCurve.PointAtEnd;
-                if (edgepth == baseCenter)
-                {
-                    edgepth = edgeh.EdgeCurve.PointAtStart;
-                }
-                // We only want two of the vertices, the ones not at x = 0, y = 0
-                if (edgepth.X < -0.0001) edgePoints.Add(edgepth);
-            }
-
-            // Order edgepts to set up the plane a6base
-            Plane a6base;
-            if (edgePoints[0].Y < edgePoints[1].Y)
-            {
-                a6base = new Plane(baseCenter, edgePoints[0], edgePoints[1]);
-            }
-            else
-            {
-                a6base = new Plane(baseCenter, edgePoints[1], edgePoints[0]);
-            }
+            Plane a6base = SetUpA6BasePlane(refA6);
 
             // Set up base orientation for K30 transformation in step (a6-000)
             Point3d k30basecenter = GetClosestVertex(refK30, new Point3d(0, -1, 0)).Location;
@@ -2451,9 +2289,9 @@ namespace Aperiodic
             // Scale up F20 unit to get general boundaries of the inflated shapes
             // Scale center point of geometry by a factor of golden ratio^3
             Transform xformScaleF20 = Transform.Scale(Point3d.Origin, DeflationScaleFactor);
-            Brep f20boundary = brep.DuplicateBrep();
+            Brep f20boundary = refF20.DuplicateBrep();
             f20boundary.Transform(xformScaleF20);
-            Point3d f20boundarybase = basept;
+            Point3d f20boundarybase = Point3d.Origin;
             f20boundarybase.Transform(xformScaleF20);
 
             // Get far pt vertex
@@ -2740,7 +2578,7 @@ namespace Aperiodic
 
                         // Get adjacent vertex points
                         adjacentIndices = furthestVertex.EdgeIndices();
-                        edgePoints = new List<Point3d>();
+                        List<Point3d> edgePoints = new List<Point3d>();
                         for (int j = 0; j < 3; j++)
                         {
                             edge = f20a61.Edges[adjacentIndices[j]];
@@ -3245,7 +3083,7 @@ namespace Aperiodic
                         }
 
                         // Start with one edge, then rotate around the plane to get the others in order
-                        edgePoints = new List<Point3d>();
+                        List<Point3d> edgePoints = new List<Point3d>();
                         edgePoints.Add(boundaryedgept);
                         for (int j = 1; j < 5; j++)
                         {
@@ -3547,8 +3385,6 @@ namespace Aperiodic
             double edgeLengthRef = refK30.Edges[0].PointAtEnd.DistanceTo(refK30.Edges[0].PointAtStart);
 
             Brep brep = refK30.DuplicateBrep();
-            Point3d basept = Point3d.Origin;
-            Plane basepln = Plane.WorldXY;
 
             // Get the centroid of the geometry
             AreaMassProperties ampBrep = AreaMassProperties.Compute(brep);
@@ -3560,11 +3396,6 @@ namespace Aperiodic
             Vector3d inflateVec = centroidVec * DeflationScaleFactor - centroidVec;
             // Translate the brep to the new scaled location (but without scaling the brep itself, so the unit size remains the same)
             brep.Translate(inflateVec);
-            // Translate the basept to the new scaled location - consistent with the brep itself, so further operations on the base pts can recurse well
-            basept += inflateVec;
-            Transform scaleInflate = Transform.Scale(Point3d.Origin, DeflationScaleFactor);
-            basepln.Transform(scaleInflate);
-            basepln.Translate(inflateVec);
 
             // Set up smaller output lists
             List<Brep> listA6 = new List<Brep>();
@@ -3580,62 +3411,10 @@ namespace Aperiodic
             List<Plane> plnsF20 = new List<Plane>();
             List<Plane> plnsK30 = new List<Plane>();
 
-            // Set up base orientation for A6 transformation later in step (h)
-            // (Alternatively we could change the base position of the refA6 geometry but this might mean rewriting everything)
-            // Get base plane for orientation transform using refA6 leftmost vertex as center and adjacent edges below it
-            BrepVertex leftmostVertex = refA6.Vertices[0];
-            double minX = 0;
-            foreach (BrepVertex a6v in refA6.Vertices)
-            {
-                double currentX = a6v.Location.X;
-                if (currentX < minX)
-                {
-                    leftmostVertex = a6v;
-                    minX = currentX;
-                }
-            }
-
-            Point3d baseCenter = leftmostVertex.Location;
-
-            int[] edgeIndices = leftmostVertex.EdgeIndices();
-            List<Point3d> edgePoints = new List<Point3d>();
-            for (int j = 0; j < 3; j++)
-            {
-                BrepEdge edgeh = refA6.Edges[edgeIndices[j]];
-                Point3d edgepth = edgeh.EdgeCurve.PointAtEnd;
-                if (edgepth == baseCenter)
-                {
-                    edgepth = edgeh.EdgeCurve.PointAtStart;
-                }
-                // We only want two of the vertices, the ones not at x = 0, y = 0
-                if (edgepth.X < -0.0001) edgePoints.Add(edgepth);
-            }
-
-            // Order edgepts to set up the plane a6base
-            Plane a6base;
-            if (edgePoints[0].Y < edgePoints[1].Y)
-            {
-                a6base = new Plane(baseCenter, edgePoints[0], edgePoints[1]);
-            }
-            else
-            {
-                a6base = new Plane(baseCenter, edgePoints[1], edgePoints[0]);
-            }
+            Plane a6base = SetUpA6BasePlane(refA6);
 
             // Set up base orientation for F20 transformation later in step (k30-i)
             Plane f20base = new Plane(Point3d.Origin, -Vector3d.XAxis, -Vector3d.YAxis);
-
-            // Set up base orientation for K30 transformation in step (a6-000)
-            Point3d k30basecenter = GetClosestVertex(refK30, new Point3d(0, -1, 0)).Location;
-            Point3d k30basexaxis = GetClosestVertex(refK30, new Point3d(1, 0, 0)).Location;
-            Point3d k30baseyaxis = new Point3d(-k30basexaxis.X, 0, 0);
-            Plane k30base = new Plane(k30basecenter, k30basexaxis, k30baseyaxis);
-
-            // Set up base orientation for B12 transformation in step (a6-000)
-            Point3d b12basecenter = GetClosestVertex(refB12, new Point3d(-0.5, 0, 0)).Location;
-            Point3d b12baseyaxis = GetClosestVertex(refB12, new Point3d(-0.5, -0.5, 1)).Location;
-            Point3d b12basexaxis = new Point3d(b12baseyaxis.X, -b12baseyaxis.Y, b12baseyaxis.Z);
-            Plane b12base = new Plane(b12basecenter, b12basexaxis, b12baseyaxis);
 
             // Begin deflation for K30
             // Add the central triacontahedron
@@ -3792,11 +3571,11 @@ namespace Aperiodic
                 // Get furthest vertex of the copy
                 BrepVertex furthestVertex = GetFurthestVertex(copyc, centroidK30);
                 // Now get the planes adjacent to this vertex - first by getting the 3 adjacent edges
-                edgeIndices = furthestVertex.EdgeIndices();
+                int[] edgeIndices = furthestVertex.EdgeIndices();
                 Point3d furthestVertexPt = furthestVertex.Location;
 
                 // Get adjacent vertex points
-                edgePoints = new List<Point3d>();
+                List<Point3d> edgePoints = new List<Point3d>();
                 for (int j = 0; j < 3; j++)
                 {
                     BrepEdge edge = copyc.Edges[edgeIndices[j]];
@@ -4188,11 +3967,11 @@ namespace Aperiodic
                 BrepVertex furthestVertex = GetFurthestVertex(copyf, centroidK30);
 
                 // Now get the planes adjacent to this vertex - first by getting the 5 adjacent edges
-                edgeIndices = furthestVertex.EdgeIndices();
+                int[] edgeIndices = furthestVertex.EdgeIndices();
                 Point3d furthestVertexPt = furthestVertex.Location;
 
                 // Start with one edge, then rotate around the plane to get the others in order
-                edgePoints = new List<Point3d>();
+                List<Point3d> edgePoints = new List<Point3d>();
                 BrepEdge edge = copyf.Edges[edgeIndices[0]];
                 Point3d edgept = edge.EdgeCurve.PointAtEnd;
                 if (edgept == furthestVertexPt)
@@ -4435,6 +4214,49 @@ namespace Aperiodic
         #endregion
 
         #region ---Helper Methods for Deflation Rule Generation---
+
+        public static Plane SetUpA6BasePlane(Brep refA6)
+        {
+            BrepVertex leftmostVertex = refA6.Vertices[0];
+            double minX = 0;
+            foreach (BrepVertex a6v in refA6.Vertices)
+            {
+                double currentX = a6v.Location.X;
+                if (currentX < minX)
+                {
+                    leftmostVertex = a6v;
+                    minX = currentX;
+                }
+            }
+
+            Point3d baseCenter = leftmostVertex.Location;
+
+            int[] edgeIndices = leftmostVertex.EdgeIndices();
+            List<Point3d> edgePoints = new List<Point3d>();
+            for (int j = 0; j < 3; j++)
+            {
+                BrepEdge edgeh = refA6.Edges[edgeIndices[j]];
+                Point3d edgepth = edgeh.EdgeCurve.PointAtEnd;
+                if (edgepth == baseCenter)
+                {
+                    edgepth = edgeh.EdgeCurve.PointAtStart;
+                }
+                // We only want two of the vertices, the ones not at x = 0, y = 0
+                if (edgepth.X < -0.0001) edgePoints.Add(edgepth);
+            }
+
+            // Order edgepts to set up the plane a6base
+            Plane a6base;
+            if (edgePoints[0].Y < edgePoints[1].Y)
+            {
+                a6base = new Plane(baseCenter, edgePoints[0], edgePoints[1]);
+            }
+            else
+            {
+                a6base = new Plane(baseCenter, edgePoints[1], edgePoints[0]);
+            }
+            return a6base;
+        }
 
         public static BrepVertex GetFurthestVertex(Brep brep, Point3d reference)
         {
