@@ -320,21 +320,11 @@ namespace Aperiodic
 
             // For the close copy, move three K30 tiles to each of the top 3 faces
             BrepVertex closeCopyInner = GetFurthestVertex(a6a600, basepta6a600);
+            Point3d closeCopyInnerPt = closeCopyInner.Location;
 
             // Get orientation planes for the K30
-            int[] edgeIndices = closeCopyInner.EdgeIndices();
-            Point3d closeCopyInnerPt = closeCopyInner.Location;
-            List<Point3d> edgePoints = new List<Point3d>();
-            for (int j = 0; j < 3; j++)
-            {
-                BrepEdge edge = a6a600.Edges[edgeIndices[j]];
-                Point3d edgept = edge.EdgeCurve.PointAtEnd;
-                if (edgept == closeCopyInnerPt)
-                {
-                    edgept = edge.EdgeCurve.PointAtStart;
-                }
-                edgePoints.Add(edgept);
-            }
+            List<Point3d> edgePoints = GetAdjacentVertexPoints(closeCopyInner);
+
             Plane planea6k300 = new Plane(closeCopyInnerPt, edgePoints[0], edgePoints[1]);
             Plane planea6k301 = new Plane(closeCopyInnerPt, edgePoints[1], edgePoints[2]);
             Plane planea6k302 = new Plane(closeCopyInnerPt, edgePoints[2], edgePoints[0]);
@@ -841,18 +831,7 @@ namespace Aperiodic
             BrepVertex farVertex = GetFurthestVertex(a6a601, basept);
 
             // Get adjacent vertex points
-            edgeIndices = farVertex.EdgeIndices();
-            edgePoints = new List<Point3d>();
-            for (int j = 0; j < 3; j++)
-            {
-                BrepEdge edgea6f20 = a6a601.Edges[edgeIndices[j]];
-                Point3d edgepta6f20 = edgea6f20.EdgeCurve.PointAtEnd;
-                if (edgepta6f20 == farVertex.Location)
-                {
-                    edgepta6f20 = edgea6f20.EdgeCurve.PointAtStart;
-                }
-                edgePoints.Add(edgepta6f20);
-            }
+            edgePoints = GetAdjacentVertexPoints(farVertex);
 
             // Create normal vectors
             Vector3d normala6f200 = edgePoints[0] - farVertex.Location;
@@ -918,19 +897,7 @@ namespace Aperiodic
                 BrepVertex topVertex = GetClosestVertex(a6a6fora6f20[i], a6a6fora6f20pts[i]);
 
                 // Get for vertex adjacent vertex points
-                edgeIndices = topVertex.EdgeIndices();
-                edgePoints = new List<Point3d>();
-
-                for (int j = 0; j < 3; j++)
-                {
-                    BrepEdge edgea6f20b = a6a6fora6f20[i].Edges[edgeIndices[j]];
-                    Point3d edgepta6f20b = edgea6f20b.EdgeCurve.PointAtEnd;
-                    if (edgepta6f20b == topVertex.Location)
-                    {
-                        edgepta6f20b = edgea6f20b.EdgeCurve.PointAtStart;
-                    }
-                    edgePoints.Add(edgepta6f20b);
-                }
+                edgePoints = GetAdjacentVertexPoints(topVertex);
 
                 for (int j = 0; j < 3; j++)
                 {
@@ -1195,16 +1162,7 @@ namespace Aperiodic
                                 Point3d furthestVertexPt = furthestVertex.Location;
 
                                 // Get adjacent vertex points
-                                int[] edgeIndices = furthestVertex.EdgeIndices();
-                                List<Point3d> edgePoints = new List<Point3d>();
-                                for (int k = 0; k < edgeIndices.Length; k++)
-                                {
-                                    BrepEdge edge = b12a61.Edges[edgeIndices[k]];
-                                    int adjacentVertexIndex = (edge.StartVertex.VertexIndex == furthestVertex.VertexIndex)
-                                        ? edge.EndVertex.VertexIndex
-                                        : edge.StartVertex.VertexIndex;
-                                    edgePoints.Add(b12a61.Vertices[adjacentVertexIndex].Location);
-                                }
+                                List<Point3d> edgePoints = GetAdjacentVertexPoints(furthestVertex);
 
                                 // Get mirror planes - but we don't want the one parallel to original base plane
                                 Plane plane0 = new Plane(furthestVertexPt, edgePoints[1], edgePoints[2]);
@@ -1293,7 +1251,7 @@ namespace Aperiodic
                         // Get plane center
                         Point3d planeCenter = b12k300.Vertices[i].Location;
 
-                        // Get orient point using adjacent  vertex
+                        // Get orient point using adjacent vertex
                         int[] edgeIndices = b12k300.Vertices[i].EdgeIndices();
                         BrepEdge firstEdge = b12k300.Edges[edgeIndices[0]];
                         Point3d orientX = (firstEdge.StartVertex.Location == planeCenter) ? firstEdge.EndVertex.Location : firstEdge.StartVertex.Location;
@@ -1464,16 +1422,7 @@ namespace Aperiodic
                         Point3d furthestVertexPt = furthestVertex.Location;
 
                         // Get adjacent vertex points
-                        edgeIndices = furthestVertex.EdgeIndices();
-                        List<Point3d> edgePoints = new List<Point3d>();
-                        for (int k = 0; k < edgeIndices.Length; k++)
-                        {
-                            BrepEdge edge = b12a60.Edges[edgeIndices[k]];
-                            int adjacentVertexIndex = (edge.StartVertex.VertexIndex == furthestVertex.VertexIndex)
-                                ? edge.EndVertex.VertexIndex
-                                : edge.StartVertex.VertexIndex;
-                            edgePoints.Add(b12a60.Vertices[adjacentVertexIndex].Location);
-                        }
+                        List<Point3d> edgePoints = GetAdjacentVertexPoints(furthestVertex);
 
                         // Get mirror planes
                         Plane plane0 = new Plane(furthestVertexPt, edgePoints[1], edgePoints[2]);
@@ -2577,18 +2526,7 @@ namespace Aperiodic
                         Point3d furthestVertexPt = furthestVertex.Location;
 
                         // Get adjacent vertex points
-                        adjacentIndices = furthestVertex.EdgeIndices();
-                        List<Point3d> edgePoints = new List<Point3d>();
-                        for (int j = 0; j < 3; j++)
-                        {
-                            edge = f20a61.Edges[adjacentIndices[j]];
-                            Point3d adjacentPt = edge.EdgeCurve.PointAtEnd;
-                            if (adjacentPt == furthestVertexPt)
-                            {
-                                adjacentPt = edge.EdgeCurve.PointAtStart;
-                            }
-                            edgePoints.Add(adjacentPt);
-                        }
+                        List<Point3d> edgePoints = GetAdjacentVertexPoints(furthestVertex);
 
                         // Get mirror planes
                         Plane plane0 = new Plane(furthestVertexPt, edgePoints[1], edgePoints[2]);
@@ -2668,18 +2606,7 @@ namespace Aperiodic
                             furthestVertexPt = furthestVertex.Location;
 
                             // Get adjacent vertex points
-                            adjacentIndices = furthestVertex.EdgeIndices();
-                            edgePoints = new List<Point3d>();
-                            for (int j = 0; j < 3; j++)
-                            {
-                                edge = copyg.Edges[adjacentIndices[j]];
-                                Point3d adjacentPt = edge.EdgeCurve.PointAtEnd;
-                                if (adjacentPt == furthestVertexPt)
-                                {
-                                    adjacentPt = edge.EdgeCurve.PointAtStart;
-                                }
-                                edgePoints.Add(adjacentPt);
-                            }
+                            edgePoints = GetAdjacentVertexPoints(furthestVertex);
 
                             // Get mirror planes
                             plane0 = new Plane(furthestVertexPt, edgePoints[1], edgePoints[2]);
@@ -2734,18 +2661,7 @@ namespace Aperiodic
                             furthestVertexPt = furthestVertex.Location;
 
                             // Get adjacent vertex points
-                            adjacentIndices = furthestVertex.EdgeIndices();
-                            edgePoints = new List<Point3d>();
-                            for (int j = 0; j < 3; j++)
-                            {
-                                edge = copyg0.Edges[adjacentIndices[j]];
-                                Point3d adjacentPt = edge.EdgeCurve.PointAtEnd;
-                                if (adjacentPt == furthestVertexPt)
-                                {
-                                    adjacentPt = edge.EdgeCurve.PointAtStart;
-                                }
-                                edgePoints.Add(adjacentPt);
-                            }
+                            edgePoints = GetAdjacentVertexPoints(furthestVertex);
 
                             // Identify furthest edgepoint - we need the two mirror planes adjacent to it
                             List<Point3d> sortedEdgePts = new List<Point3d>();
@@ -3570,22 +3486,10 @@ namespace Aperiodic
                 // Copy A6 6 more times around this one... (step (d) but in a different way from article)
                 // Get furthest vertex of the copy
                 BrepVertex furthestVertex = GetFurthestVertex(copyc, centroidK30);
-                // Now get the planes adjacent to this vertex - first by getting the 3 adjacent edges
-                int[] edgeIndices = furthestVertex.EdgeIndices();
                 Point3d furthestVertexPt = furthestVertex.Location;
 
-                // Get adjacent vertex points
-                List<Point3d> edgePoints = new List<Point3d>();
-                for (int j = 0; j < 3; j++)
-                {
-                    BrepEdge edge = copyc.Edges[edgeIndices[j]];
-                    Point3d edgept = edge.EdgeCurve.PointAtEnd;
-                    if (edgept == furthestVertexPt)
-                    {
-                        edgept = edge.EdgeCurve.PointAtStart;
-                    }
-                    edgePoints.Add(edgept);
-                }
+                // Now get the planes adjacent to this vertex - first by getting the 3 adjacent edges
+                List<Point3d> edgePoints = GetAdjacentVertexPoints(furthestVertex);
 
                 // Get mirror planes
                 Plane plane0 = new Plane(furthestVertexPt, edgePoints[1], edgePoints[2]);
@@ -3716,20 +3620,7 @@ namespace Aperiodic
                 furthestVertexPt = furthestVertex.Location;
 
                 // Now get the planes adjacent to this vertex - first by getting the 3 adjacent edges
-                edgeIndices = furthestVertex.EdgeIndices();
-
-                // Get adjacent vertex points
-                edgePoints = new List<Point3d>();
-                for (int j = 0; j < 3; j++)
-                {
-                    BrepEdge edge = copyg.Edges[edgeIndices[j]];
-                    Point3d edgept = edge.EdgeCurve.PointAtEnd;
-                    if (edgept == furthestVertexPt)
-                    {
-                        edgept = edge.EdgeCurve.PointAtStart;
-                    }
-                    edgePoints.Add(edgept);
-                }
+                edgePoints = GetAdjacentVertexPoints(furthestVertex);
 
                 // Get mirror planes
                 plane0 = new Plane(furthestVertexPt, edgePoints[1], edgePoints[2]);
@@ -3785,23 +3676,10 @@ namespace Aperiodic
 
                 // Again, get furthest vertex/edges
                 furthestVertex = GetFurthestVertex(copyg0, centroidK30);
-
-                // Now get the planes adjacent to this vertex - first by getting the 3 adjacent edges
-                edgeIndices = furthestVertex.EdgeIndices();
                 furthestVertexPt = furthestVertex.Location;
 
-                // Get adjacent vertex points
-                edgePoints = new List<Point3d>();
-                for (int j = 0; j < 3; j++)
-                {
-                    BrepEdge edge = copyg0.Edges[edgeIndices[j]];
-                    Point3d edgept = edge.EdgeCurve.PointAtEnd;
-                    if (edgept == furthestVertexPt)
-                    {
-                        edgept = edge.EdgeCurve.PointAtStart;
-                    }
-                    edgePoints.Add(edgept);
-                }
+                // Now get the planes adjacent to this vertex - first by getting the 3 adjacent edges
+                edgePoints = GetAdjacentVertexPoints(furthestVertex);
 
                 // Identify furthest edgepoint - we need the two mirror planes adjacent to it
                 List<Point3d> sortedEdgePts = new List<Point3d>();
@@ -4256,6 +4134,23 @@ namespace Aperiodic
                 a6base = new Plane(baseCenter, edgePoints[1], edgePoints[0]);
             }
             return a6base;
+        }
+
+        public static List<Point3d> GetAdjacentVertexPoints(BrepVertex vertex)
+        {             
+            List<Point3d> adjacentVertexPoints = new List<Point3d>();
+            int[] edgeIndices = vertex.EdgeIndices();
+            for (int i = 0; i < edgeIndices.Length; i++)
+            {
+                BrepEdge edge = vertex.Brep.Edges[edgeIndices[i]];
+                Point3d edgept = edge.EdgeCurve.PointAtEnd;
+                if (edgept == vertex.Location)
+                {
+                    edgept = edge.EdgeCurve.PointAtStart;
+                }
+                adjacentVertexPoints.Add(edgept);
+            }
+            return adjacentVertexPoints;
         }
 
         public static BrepVertex GetFurthestVertex(Brep brep, Point3d reference)
