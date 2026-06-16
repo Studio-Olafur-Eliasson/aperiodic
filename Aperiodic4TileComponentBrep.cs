@@ -4334,7 +4334,6 @@ namespace Aperiodic
             }
         }
 
-
         public static void TranslatePlanesAlongNormals(List<Plane> planes, double distance)
         {
             for (int i = 0; i < planes.Count; i++)
@@ -5149,12 +5148,6 @@ namespace Aperiodic
 
         #region ---Seed Options---
 
-        public static double GetMeshHeight(Mesh mesh)
-        {
-            BoundingBox bbox = mesh.GetBoundingBox(true);
-            return bbox.Max.Z - bbox.Min.Z;
-        }
-
         public static double GetBrepHeight(Brep brep)
         {
             BoundingBox bbox = brep.GetBoundingBox(true);
@@ -5263,16 +5256,6 @@ namespace Aperiodic
         #endregion
 
         #region ---Preview---
-        public static List<Curve> GetWireframeEdges(Mesh mesh)
-        {
-            var curves = new List<Curve>();
-            for (int i = 0; i < mesh.TopologyEdges.Count; i++)
-            {
-                Line line = mesh.TopologyEdges.EdgeLine(i);
-                curves.Add(new LineCurve(line));
-            }
-            return curves;
-        }
         
         public override void DrawViewportWires(IGH_PreviewArgs args)
         {
