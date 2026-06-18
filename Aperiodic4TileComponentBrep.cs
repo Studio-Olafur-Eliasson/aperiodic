@@ -4442,6 +4442,10 @@ namespace Aperiodic
                     Brep brepFilter = Brep.TryConvertBrep(geometryFilter);
                     filteredbaseplns = BrepFilterPlanesOptimized(inflatedbaseplns, brepFilter, filterDistance, includeInterior, iterations, buffer);
                 }
+                else if (geometryFilter is Mesh meshFilter)
+                {
+                    filteredbaseplns = MeshFilterPlanesOptimized(inflatedbaseplns, meshFilter, filterDistance, includeInterior, iterations, buffer);
+                }
                 else
                 {
                     Curve crvFilter = geometryFilter as Curve;
@@ -4567,6 +4571,73 @@ namespace Aperiodic
             {
                 result.AddRange(resultLists[i], new GH_Path(i));
             }
+            return result;
+        }
+
+        public static DataTree<Plane> MeshFilterPlanesOptimized(
+            DataTree<Plane> inflatedbaseplns,
+            Mesh meshFilter,
+            double filterDistance,
+            bool includeInterior,
+            int iterations,
+            double buffer)
+        {
+            if (meshFilter == null)
+                throw new Exception("MeshFilterPlanesOptimized: meshFilter is null");
+
+            if (!meshFilter.IsValid || meshFilter.Faces.Count == 0)
+            {
+                throw new Exception("Mesh filter is invalid or empty");
+            }
+
+            if (iterations == 1) buffer = 0;
+
+            double filterDivisionFactor = Math.Pow(InverseDeflationScaleFactor, iterations - 1);
+            double maxDistance = filterDistance * filterDivisionFactor + (buffer * 1.5);
+
+            // Pre-compute expanded bounding box for fast rejection
+            BoundingBox filterBBox = meshFilter.GetBoundingBox(false);
+            filterBBox.Inflate(maxDistance);
+
+            bool canCheckInside = includeInterior && meshFilter.IsClosed;
+
+            var resultLists = new List<Plane>[4];
+
+            for (int i = 0; i < 4; i++)
+            {
+                var planes = inflatedbaseplns.Branches[i];
+                resultLists[i] = new List<Plane>(planes.Count);
+
+                for (int j = 0; j < planes.Count; j++)
+                {
+                    Point3d testPoint = planes[j].Origin;
+
+                    // Fast bounding box rejection
+                    if (!filterBBox.Contains(testPoint))
+                        continue;
+
+                    if (canCheckInside && meshFilter.IsPointInside(testPoint, RhinoMath.SqrtEpsilon, false))
+                    {
+                        resultLists[i].Add(planes[j]);
+                        continue;
+                    }
+
+                    Point3d closestPoint = meshFilter.ClosestPoint(testPoint);
+
+                    // Checking closestpt validity
+                    if (!closestPoint.IsValid) continue;
+
+                    double dist = testPoint.DistanceTo(closestPoint);
+
+                    if (dist > 0 && dist < maxDistance)
+                        resultLists[i].Add(planes[j]);
+                }
+            }
+
+            DataTree<Plane> result = new DataTree<Plane>();
+            for (int i = 0; i < 4; i++)
+                result.AddRange(resultLists[i], new GH_Path(i));
+
             return result;
         }
 
