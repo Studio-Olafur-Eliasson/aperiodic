@@ -226,51 +226,6 @@ namespace Aperiodic
             DA.SetDataTree(2, outputTransformations);
         }
 
-        
-
-        public static bool CheckGeometryFilter(GeometryBase geometryFilter, Plane tilePlane, double filterDistance, bool includeInterior)
-        {
-            if (geometryFilter == null) return true; // No filter, so all tiles are valid
-
-            // Create a point on the tile plane to check against the filter
-            Point3d tilePoint = tilePlane.Origin;
-
-            // If filter is a Brep
-            if (geometryFilter.HasBrepForm)
-            {
-                Brep brepFilter = Brep.TryConvertBrep(geometryFilter);
-                if (includeInterior && brepFilter.IsSolid)
-                {
-                    if (brepFilter.IsPointInside(tilePoint, 0.01, true))
-                    {
-                        return true; // Tile is inside the filter
-                    }
-                }
-                // For non-solid Breps or if not including interior, or for remaining tiles
-                // Check if tile is within filter distance of the Brep surface
-                Point3d closestPoint;
-                ComponentIndex ci;
-                double s, t;
-                Vector3d normal;
-                brepFilter.ClosestPoint(tilePoint, out closestPoint, out ci, out s, out t, filterDistance, out normal);
-                double closestDist = closestPoint.DistanceTo(tilePoint);
-                if (closestDist > 0 && closestDist <= filterDistance)
-                {
-                    return true; // Tile is within distance of the filter
-                }
-                else return false; // Tile is too far from the filter
-            }
-            // If filter is a Curve
-            else if (geometryFilter is Curve crvFilter)
-            {
-                // For curves, we can check if the tile point is within a certain distance
-                double t;
-                if (crvFilter.ClosestPoint(tilePoint, out t, filterDistance)) return true;
-                else return false;
-            }
-            else return true;
-        }
-
         /// <summary>
         /// Optimized batch filter check with bounding box pre-filtering
         /// </summary>
