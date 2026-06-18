@@ -13,6 +13,19 @@ namespace Aperiodic
         // Cache commonly used constants
         private static readonly double GoldenRatio = (1 + Math.Sqrt(5)) / 2;
 
+        // Cache decomposition planes to avoid recalculating them each time the component runs
+        private Plane[][] _cachedPlanesA6;
+        private Plane[][] _cachedPlanesB12;
+        private Plane[][] _cachedPlanesF20;
+        private Plane[][] _cachedPlanesK30;
+
+        // Cache base breps and meshes
+        private DataTree<Brep> _cachedBaseBreps;
+        private DataTree<Mesh> _cachedBaseMeshes;
+
+        // Cache scale (for future implementation of dynamic scaling) - if scale changes, we need to recalculate the planes
+        private double _lastScale = double.NaN;
+
         /// <summary>
         /// Each implementation of GH_Component must provide a public 
         /// constructor without any arguments.
@@ -72,16 +85,22 @@ namespace Aperiodic
             DA.GetData(2, ref includeInterior);
             DA.GetDataTree(3, out transformations);
 
+            // DA.GetData(4, ref scale); // future implementation
+
             if (transformations.IsEmpty)
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, "Missing transformation (X) input. Connect a valid transformation tree, generated from the Aperiodic 4-Tile Component.");
             }
 
             // Get decomposition planes
-            Plane[][] decompositionPlanesA6 = GetA6DecompositionPlanes(scale);
-            Plane[][] decompositionPlanesB12 = GetB12DecompositionPlanes(scale);
-            Plane[][] decompositionPlanesF20 = GetF20DecompositionPlanes(scale);
-            Plane[][] decompositionPlanesK30 = GetK30DecompositionPlanes(scale);
+            if (_cachedPlanesA6 == null || scale != _lastScale)
+            {
+                _cachedPlanesA6 = GetA6DecompositionPlanes(scale);
+                _cachedPlanesB12 = GetB12DecompositionPlanes(scale);
+                _cachedPlanesF20 = GetF20DecompositionPlanes(scale);
+                _cachedPlanesK30 = GetK30DecompositionPlanes(scale);
+                _lastScale = scale;
+            }
 
             // Collect all transformed planes first, then filter in batch
             var allO6Planes = new List<Plane>();
@@ -94,13 +113,13 @@ namespace Aperiodic
             foreach (Plane pl in inputTransformationPlanes[0])
             {
                 Transform xform = Transform.PlaneToPlane(Plane.WorldXY, pl);
-                foreach (Plane decompO6 in decompositionPlanesA6[0])
+                foreach (Plane decompO6 in _cachedPlanesA6[0])
                 {
                     Plane transformedO6 = decompO6;
                     transformedO6.Transform(xform);
                     allO6Planes.Add(transformedO6);
                 }
-                foreach (Plane decompA6 in decompositionPlanesA6[1])
+                foreach (Plane decompA6 in _cachedPlanesA6[1])
                 {
                     Plane transformedA6 = decompA6;
                     transformedA6.Transform(xform);
@@ -112,13 +131,13 @@ namespace Aperiodic
             foreach (Plane pl in inputTransformationPlanes[1])
             {
                 Transform xform = Transform.PlaneToPlane(Plane.WorldXY, pl);
-                foreach (Plane decompO6 in decompositionPlanesB12[0])
+                foreach (Plane decompO6 in _cachedPlanesB12[0])
                 {
                     Plane transformedO6 = decompO6;
                     transformedO6.Transform(xform);
                     allO6Planes.Add(transformedO6);
                 }
-                foreach (Plane decompA6 in decompositionPlanesB12[1])
+                foreach (Plane decompA6 in _cachedPlanesB12[1])
                 {
                     Plane transformedA6 = decompA6;
                     transformedA6.Transform(xform);
@@ -130,13 +149,13 @@ namespace Aperiodic
             foreach (Plane pl in inputTransformationPlanes[2])
             {
                 Transform xform = Transform.PlaneToPlane(Plane.WorldXY, pl);
-                foreach (Plane decompO6 in decompositionPlanesF20[0])
+                foreach (Plane decompO6 in _cachedPlanesF20[0])
                 {
                     Plane transformedO6 = decompO6;
                     transformedO6.Transform(xform);
                     allO6Planes.Add(transformedO6);
                 }
-                foreach (Plane decompA6 in decompositionPlanesF20[1])
+                foreach (Plane decompA6 in _cachedPlanesF20[1])
                 {
                     Plane transformedA6 = decompA6;
                     transformedA6.Transform(xform);
@@ -148,13 +167,13 @@ namespace Aperiodic
             foreach (Plane pl in inputTransformationPlanes[3])
             {
                 Transform xform = Transform.PlaneToPlane(Plane.WorldXY, pl);
-                foreach (Plane decompO6 in decompositionPlanesK30[0])
+                foreach (Plane decompO6 in _cachedPlanesK30[0])
                 {
                     Plane transformedO6 = decompO6;
                     transformedO6.Transform(xform);
                     allO6Planes.Add(transformedO6);
                 }
-                foreach (Plane decompA6 in decompositionPlanesK30[1])
+                foreach (Plane decompA6 in _cachedPlanesK30[1])
                 {
                     Plane transformedA6 = decompA6;
                     transformedA6.Transform(xform);
@@ -173,24 +192,36 @@ namespace Aperiodic
             outputTransformations.AddRange(filteredO6Planes, pth0);
             outputTransformations.AddRange(filteredA6Planes, pth1);
 
-            // Set Up for base mesh and brep generation for 2-tile system
-            DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
-            DataTree<Brep> baseBreps = new DataTree<Brep>();
+            // Base mesh and brep generation for 2-tile system (use cached versions if available, otherwise generate and cache)
 
             // Generate Base Meshes
-            Mesh meshO6 = GenerateMeshO6(scale);
-            Mesh meshA6 = GenerateMeshA6(scale);
-            baseMeshes.Add(meshO6, new GH_Path(0));
-            baseMeshes.Add(meshA6, new GH_Path(1));
+            if (_cachedBaseMeshes == null)
+            {
+                // Generate meshes for each tile type
+                DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
+                Mesh meshO6 = GenerateMeshO6(scale);
+                Mesh meshA6 = GenerateMeshA6(scale);
+                baseMeshes.Add(meshO6, new GH_Path(0));
+                baseMeshes.Add(meshA6, new GH_Path(1));
+
+                _cachedBaseMeshes = baseMeshes;
+            }
 
             // Generate Base Breps
-            Brep brepO6 = GenerateBrepO6(scale);
-            Brep brepA6 = GenerateBrepA6(scale);
-            baseBreps.Add(brepO6, new GH_Path(0));
-            baseBreps.Add(brepA6, new GH_Path(1));
+            if (_cachedBaseBreps == null)
+            {
+                // Generate breps for each tile type
+                DataTree<Brep> baseBreps = new DataTree<Brep>();
+                Brep brepO6 = GenerateBrepO6(scale);
+                Brep brepA6 = GenerateBrepA6(scale);
+                baseBreps.Add(brepO6, new GH_Path(0));
+                baseBreps.Add(brepA6, new GH_Path(1));
 
-            DA.SetDataTree(0, baseMeshes);
-            DA.SetDataTree(1, baseBreps);
+                _cachedBaseBreps = baseBreps;
+            }
+
+            DA.SetDataTree(0, _cachedBaseMeshes);
+            DA.SetDataTree(1, _cachedBaseBreps);
             DA.SetDataTree(2, outputTransformations);
         }
 
