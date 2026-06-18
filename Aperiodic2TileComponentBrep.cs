@@ -8,7 +8,7 @@ using System.Collections.Generic;
 
 namespace Aperiodic
 {
-    public class Aperiodic2TileComponent : GH_Component
+    public class Aperiodic2TileBrepComponent : GH_Component
     {
         // Cache commonly used constants
         private static readonly double GoldenRatio = (1 + Math.Sqrt(5)) / 2;
@@ -20,9 +20,9 @@ namespace Aperiodic
         /// Subcategory the panel. If you use non-existing tab or panel names, 
         /// new tabs/panels will automatically be created.
         /// </summary>
-        public Aperiodic2TileComponent()
-          : base("Aperiodic 2-Tile", "2-Tile",
-            "Generate aperiodic 2-tile transformations (v1.0.0)",
+        public Aperiodic2TileBrepComponent()
+          : base("Aperiodic 2-Tile Brep", "2-Tile Brep",
+            "Generate aperiodic 2-tile transformations (testing version with brep)",
             "Aperiodic", "Aperiodic")
         {
         }
@@ -317,6 +317,8 @@ namespace Aperiodic
         }
 
 
+
+
         #region ---Decomposition Plane Generation---
 
         public static Plane[][] GetA6DecompositionPlanes(double scale)
@@ -335,19 +337,16 @@ namespace Aperiodic
             planes[0] = new Plane[2];  // 2 O6 tiles
             planes[1] = new Plane[2];  // 2 A6 tiles
 
-            Mesh refB12 = GenerateMeshB12(scale);
+            Brep refB12 = GenerateBrepB12(scale);
             BoundingBox bbox = refB12.GetBoundingBox(true);
             double Xdist = bbox.Max.X;
             double Ydist = bbox.Max.Y;
             double Zdist = bbox.Max.Z;
 
             // Get O6 Planes using 3 points, then mirroring across WorldYZ
-            int minYpointIndex = GetClosestVertex(refB12, new Point3d(0, -Ydist, 0));
-            Point3d minYpoint = refB12.TopologyVertices[minYpointIndex];
-            int topPointIndex = GetClosestVertex(refB12, new Point3d(Xdist, Ydist*0.5, 0));
-            Point3d topPoint = refB12.TopologyVertices[topPointIndex];
-            int xPointIndex = GetClosestVertex(refB12, new Point3d(Xdist, -Ydist * 0.5, 0));
-            Point3d xPoint = refB12.TopologyVertices[xPointIndex];
+            Point3d minYpoint = GetClosestVertex(refB12, new Point3d(0, -Ydist, 0)).Location;
+            Point3d topPoint = GetClosestVertex(refB12, new Point3d(Xdist, Ydist*0.5, 0)).Location;
+            Point3d xPoint = GetClosestVertex(refB12, new Point3d(Xdist, -Ydist * 0.5, 0)).Location;
             Plane plane0601 = PlaneFromRhombohedronCoordinates(minYpoint, topPoint, xPoint);
             planes[0][0] = plane0601;
             plane0601.Transform(Transform.Mirror(Plane.WorldYZ));
@@ -355,12 +354,9 @@ namespace Aperiodic
             planes[0][1] = plane0601;
 
             // Get A6 Planes using 3 points, then mirroring across WorldXY
-            int maxYpointIndex = GetClosestVertex(refB12, new Point3d(0, Ydist, 0));
-            Point3d maxYpoint = refB12.TopologyVertices[maxYpointIndex];
-            int bottomPointIndex = GetClosestVertex(refB12, new Point3d(0, -Ydist, -Zdist));
-            Point3d bottomPoint = refB12.TopologyVertices[bottomPointIndex];
-            xPointIndex = GetClosestVertex(refB12, new Point3d(Xdist, 0, -Zdist));
-            xPoint = refB12.TopologyVertices[xPointIndex];
+            Point3d maxYpoint = GetClosestVertex(refB12, new Point3d(0, Ydist, 0)).Location;
+            Point3d bottomPoint = GetClosestVertex(refB12, new Point3d(0, -Ydist, -Zdist)).Location;
+            xPoint = GetClosestVertex(refB12, new Point3d(Xdist, 0, -Zdist)).Location;
             Plane planeA601 = PlaneFromRhombohedronCoordinates(bottomPoint, maxYpoint, xPoint);
             planes[1][0] = planeA601;
             planeA601.Transform(Transform.Mirror(Plane.WorldXY));
@@ -376,7 +372,7 @@ namespace Aperiodic
             planes[0] = new Plane[5];  // 5 O6 tiles in F20 decomposition
             planes[1] = new Plane[5];  // 5 A6 tiles in F20 decomposition
 
-            Mesh refF20 = GenerateMeshF20(scale);
+            Brep refF20 = GenerateBrepF20(scale);
             BoundingBox bbox = refF20.GetBoundingBox(true);
             double Xdist = bbox.Max.X;
             double Ydist = bbox.Max.Y;
@@ -384,26 +380,29 @@ namespace Aperiodic
 
             // Get some vertices of the F20
             // Start with the top vertex
-            int maxZpointIndex = GetClosestVertex(refF20, new Point3d(0, 0, Zdist));
-            Point3d maxZpoint = refF20.TopologyVertices[maxZpointIndex];
-            int minZpointIndex = GetClosestVertex(refF20, new Point3d(0, 0, -Zdist));
-            Point3d minZpoint = refF20.TopologyVertices[minZpointIndex];
-            int maxXpointIndex = GetClosestVertex(refF20, new Point3d(Xdist, 0, 0));
-            Point3d maxXpoint = refF20.TopologyVertices[maxXpointIndex];
-            int minXpointIndex = GetClosestVertex(refF20, new Point3d(-Xdist, 0, 0));
-            Point3d minXpoint = refF20.TopologyVertices[minXpointIndex];
+            BrepVertex maxZpointVertex = GetClosestVertex(refF20, new Point3d(0, 0, Zdist));
+            Point3d maxZpoint = maxZpointVertex.Location;
+            Point3d minZpoint = GetClosestVertex(refF20, new Point3d(0, 0, -Zdist)).Location;
+            Point3d maxXpoint = GetClosestVertex(refF20, new Point3d(Xdist, 0, 0)).Location;
+            Point3d minXpoint = GetClosestVertex(refF20, new Point3d(-Xdist, 0, 0)).Location;
 
             // Get adjacent vertices to top vertex - gives some vectors we can use to find different points
-            int[] adjacentVertexIndices = refF20.Vertices.GetConnectedVertices(maxZpointIndex);
-            Point3d e0 = new Point3d(0,0,0);
-            for (int j = 0; j < 5; j++)
+            int[] edgeIndices = maxZpointVertex.EdgeIndices();
+            Point3d e0 = new Point3d(0, 0, 0);
+            for (int i = 0; i < edgeIndices.Length; i++)
             {
-                Point3d edgePt = (Point3d)refF20.Vertices[adjacentVertexIndices[j]];
-                if (edgePt.X > e0.X)
+                BrepEdge edge = maxZpointVertex.Brep.Edges[edgeIndices[i]];
+                Point3d edgept = edge.EdgeCurve.PointAtEnd;
+                if (edgept == maxZpointVertex.Location)
                 {
-                    e0 = edgePt;
+                    edgept = edge.EdgeCurve.PointAtStart;
+                }
+                if (edgept.X > e0.X)
+                {
+                    e0 = edgept;
                 }
             }
+
             Vector3d v0 = e0 - maxZpoint;
             Vector3d v1 = v0;
             v1.Rotate(Math.PI * 2 / 5, Vector3d.ZAxis);
@@ -437,64 +436,85 @@ namespace Aperiodic
             planes[0] = new Plane[10];  // 5 O6 tiles in K30 decomposition
             planes[1] = new Plane[10];  // 5 A6 tiles in K30 decomposition
 
-            Mesh refK30 = GenerateMeshK30(scale);
+            Brep refK30 = GenerateBrepK30(scale);
             BoundingBox bbox = refK30.GetBoundingBox(true);
-            double Xdist = bbox.Max.X;
-            double Ydist = bbox.Max.Y;
             double Zdist = bbox.Max.Z;
 
             // Get some vertices of the K30
             // Start with the top face
-            refK30.FaceNormals.ComputeFaceNormals();
             int closeFaceIndex = GetClosestFace(refK30, new Point3d(0, 0, Zdist));
-            int[] topFaceVertices = new int[4];
-            topFaceVertices[0] = refK30.Faces[closeFaceIndex].A;
-            topFaceVertices[1] = refK30.Faces[closeFaceIndex].B;
-            topFaceVertices[2] = refK30.Faces[closeFaceIndex].C;
-            topFaceVertices[3] = refK30.Faces[closeFaceIndex].D;
+
+            // Get center and normal vector of the current face
+            BrepFace closeFace = refK30.Faces[closeFaceIndex];
+            Point3d centerFace = GetBrepFaceCenter(refK30, closeFaceIndex);
+
+            // Get vertices from the face
+            List<Point3d> faceVertices = new List<Point3d>();
+            int edgeIndex = closeFace.AdjacentEdges()[0];
+            BrepEdge edge = refK30.Edges[edgeIndex];
+            Curve edgeCurve = edge.EdgeCurve;
+            faceVertices.Add(edgeCurve.PointAtStart);
+            faceVertices.Add(edgeCurve.PointAtEnd);
+            Vector3d a = edgeCurve.PointAtStart - centerFace;
+            Vector3d b = edgeCurve.PointAtEnd - centerFace;
+            faceVertices.Add(centerFace - a);
+            faceVertices.Add(centerFace - b);
 
             // Get vertices above and below XZ plane
-            int topFacePositiveYIndex = -1;
-            int topFaceNegativeYIndex = -1;
+            Point3d topFacePositiveY = new Point3d(0, 0, 0);
+            Point3d topFaceNegativeY = new Point3d(0, 0, 0);
             for (int i = 0; i < 4; i++)
             {
-                if (refK30.TopologyVertices[topFaceVertices[i]].Y > 0.0001)
+                if (faceVertices[i].Y > 0.0001)
                 {
-                    topFacePositiveYIndex = topFaceVertices[i];
+                    topFacePositiveY = faceVertices[i];
                 }
-                else if (refK30.TopologyVertices[topFaceVertices[i]].Y < -0.0001)
+                else if (faceVertices[i].Y < -0.0001)
                 {
-                    topFaceNegativeYIndex = topFaceVertices[i];
+                    topFaceNegativeY = faceVertices[i];
                 }
             }
-            Point3d topFacePositiveY = refK30.TopologyVertices[topFacePositiveYIndex];
-            Point3d topFaceNegativeY = refK30.TopologyVertices[topFaceNegativeYIndex];
+            BrepVertex topFacePositiveYVertex = GetClosestVertex(refK30, topFacePositiveY);
+            BrepVertex topFaceNegativeYVertex = GetClosestVertex(refK30, topFaceNegativeY);
+
+            // Get symmetric vertices on the bottom face by mirroring across XY plane
             Point3d bottomFacePositiveY = new Point3d(topFacePositiveY.X, topFacePositiveY.Y, -topFacePositiveY.Z);
             Point3d bottomFaceNegativeY = new Point3d(topFaceNegativeY.X, topFaceNegativeY.Y, -topFaceNegativeY.Z);
 
-            // Get adjacent vertices and vector from topFaceNegativeY - gives some vectors we can use to find different points
-            int[] adjacentVertexIndices = refK30.Vertices.GetConnectedVertices(topFaceNegativeYIndex);
+            // Get adjacent vertices and vector from topFaceNegativeY - look for the edge pointing in negative Y direction
             Point3d e0 = new Point3d(0, 0, 0);
-            for (int j = 0; j < 5; j++)
+            int[] edgeIndices = topFaceNegativeYVertex.EdgeIndices();
+            for (int i = 0; i < edgeIndices.Length; i++)
             {
-                Point3d edgePt = (Point3d)refK30.Vertices[adjacentVertexIndices[j]];
-                if (edgePt.Y < topFaceNegativeY.Y)
+                edge = topFaceNegativeYVertex.Brep.Edges[edgeIndices[i]];
+                Point3d edgept = edge.EdgeCurve.PointAtEnd;
+                if (edgept == topFaceNegativeYVertex.Location)
                 {
-                    e0 = edgePt;
+                    edgept = edge.EdgeCurve.PointAtStart;
+                }
+                if (edgept.Y < topFaceNegativeY.Y)
+                {
+                    e0 = edgept;
                 }
             }
 
-            // Get adjacent vertices and vector from topFacePositiveY - get last direction
-            adjacentVertexIndices = refK30.Vertices.GetConnectedVertices(topFacePositiveYIndex);
+            // Get adjacent vertices and vector from topFacePositiveY - look for the edge pointing in positive Y direction
             Point3d e5 = new Point3d(0, 0, 0);
-            for (int j = 0; j < 5; j++)
+            edgeIndices = topFacePositiveYVertex.EdgeIndices();
+            for (int i = 0; i < edgeIndices.Length; i++)
             {
-                Point3d edgePt = (Point3d)refK30.Vertices[adjacentVertexIndices[j]];
-                if (edgePt.Y > topFacePositiveY.Y)
+                edge = topFacePositiveYVertex.Brep.Edges[edgeIndices[i]];
+                Point3d edgept = edge.EdgeCurve.PointAtEnd;
+                if (edgept == topFacePositiveYVertex.Location)
                 {
-                    e5 = edgePt;
+                    edgept = edge.EdgeCurve.PointAtStart;
+                }
+                if (edgept.Y > topFacePositiveY.Y)
+                {
+                    e5 = edgept;
                 }
             }
+
             Vector3d v5 = topFacePositiveY - e5;
             Vector3d v0 = e0 - topFaceNegativeY;
             Vector3d v1 = v0;
@@ -506,7 +526,6 @@ namespace Aperiodic
             Vector3d v4 = v3;
             v4.Rotate(Math.PI * 2 / 5, v5);
 
-            // Note - there is probably a cleaner way to do this but for now this works
             // Get O6 Planes using 3 points
             planes[0][0] = PlaneFromRhombohedronCoordinates(topFaceNegativeY, topFacePositiveY + v1, topFaceNegativeY + v2);
             planes[0][1] = PlaneFromRhombohedronCoordinates(topFaceNegativeY, topFaceNegativeY + v0 + v4 + v3, topFaceNegativeY + v4);
@@ -556,32 +575,33 @@ namespace Aperiodic
 
             return new Plane(origin, xAxis, yAxis);
         }
-        public static int GetClosestVertex(Mesh mesh, Point3d reference)
+
+        public static BrepVertex GetClosestVertex(Brep brep, Point3d reference)
         {
-            int closestVertexIndex = 0;
+            BrepVertex closestVertex = brep.Vertices[0];
             Point3d currentVertex = new Point3d();
             double minDistance = 1000000000;
-            for (int i = 0; i < mesh.TopologyVertices.Count; i++)
+            foreach (BrepVertex v in brep.Vertices)
             {
-                currentVertex = mesh.TopologyVertices[i];
+                currentVertex = v.Location;
                 double distance = currentVertex.DistanceTo(reference);
                 if (distance < minDistance)
                 {
-                    closestVertexIndex = i;
+                    closestVertex = v;
                     minDistance = distance;
                 }
             }
-            return closestVertexIndex;
+            return closestVertex;
         }
 
-        public static int GetClosestFace(Mesh mesh, Point3d reference)
+        public static int GetClosestFace(Brep brep, Point3d reference)
         {
             int closestFaceIndex = 0;
             Point3d currentFaceCenter = new Point3d();
             double minDistance = 1000000;
-            for (int i = 0; i < mesh.Faces.Count; i++)
+            for (int i = 0; i < brep.Faces.Count; i++)
             {
-                currentFaceCenter = mesh.Faces.GetFaceCenter(i);
+                currentFaceCenter = GetBrepFaceCenter(brep, i);
                 double distance = currentFaceCenter.DistanceTo(reference);
                 if (distance < minDistance)
                 {
@@ -591,6 +611,23 @@ namespace Aperiodic
             }
             return closestFaceIndex;
         }
+
+        public static Point3d GetBrepFaceCenter(Brep brep, int faceIndex)
+        {
+            BrepFace face = brep.Faces[faceIndex];
+            int[] adjacentEdgeIndices = face.AdjacentEdges();
+
+            Point3d center = Point3d.Origin;
+            foreach (int edgeIdx in adjacentEdgeIndices)
+            {
+                BrepEdge edge = brep.Edges[edgeIdx];
+                center += edge.PointAtMid;
+            }
+
+            center /= adjacentEdgeIndices.Length;
+            return center;
+        }
+        
         private static Plane[][] ExtractPlaneArrays(GH_Structure<GH_Plane> ghStructure)
         {
             int branchCount = Math.Min(ghStructure.Branches.Count, 4);
@@ -683,26 +720,6 @@ namespace Aperiodic
             // Note: This rotation potentially introduces inaccuracies - maybe cleaner to generate the zonohedron already at this angle
             brepA6.Rotate(-Math.Acos(phi / Math.Sqrt(3)) - (Math.PI / 2), Vector3d.YAxis, Point3d.Origin);
             return brepA6;
-        }
-
-        public static Mesh GenerateMeshB12(double scale)
-        {
-            List<Vector3d> starVectors = GenerateStarVectors(4, false);
-            return GenerateZonohedronMeshFromStarVectors(starVectors, scale);
-        }
-
-        public static Mesh GenerateMeshF20(double scale)
-        {
-            List<Vector3d> starVectors = GenerateStarVectors(5, false);
-            Mesh meshF20 = GenerateZonohedronMeshFromStarVectors(starVectors, scale);
-            meshF20.Rotate(Math.PI, Vector3d.ZAxis, Point3d.Origin);
-            meshF20.Rotate(Math.Asin(Math.Sqrt((5 + Math.Sqrt(5)) / 10)), Vector3d.YAxis, Point3d.Origin);
-            return meshF20;
-        }
-        public static Mesh GenerateMeshK30(double scale)
-        {
-            List<Vector3d> starVectors = GenerateStarVectors(6, false);
-            return GenerateZonohedronMeshFromStarVectors(starVectors, scale);
         }
 
         public static Mesh GenerateZonohedronMeshFromStarVectors(List<Vector3d> starVectors, double scale)
@@ -902,22 +919,25 @@ namespace Aperiodic
             return mesh;
         }
 
-        public static void TranslateToWorldXY(Mesh mesh)
+        public static Brep GenerateBrepB12(double scale)
         {
-            // Find the minimum Z value among all topology vertices
-            double minZ = double.MaxValue;
-            for (int i = 0; i < mesh.TopologyVertices.Count; i++)
-            {
-                double z = mesh.TopologyVertices[i].Z;
-                if (z < minZ)
-                    minZ = z;
-            }
+            List<Vector3d> starVectors = GenerateStarVectors(4, false);
+            return GenerateZonohedronBrepFromStarVectors(starVectors, scale);
+        }
 
-            // Translate the mesh so its base sits on WorldXY (Z = 0)
-            if (Math.Abs(minZ) > 0.0001) // Only translate if not already at Z = 0
-            {
-                mesh.Translate(new Vector3d(0, 0, -minZ));
-            }
+        public static Brep GenerateBrepF20(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(5, false);
+            Brep brepF20 = GenerateZonohedronBrepFromStarVectors(starVectors, scale);
+            brepF20.Rotate(Math.PI, Vector3d.ZAxis, Point3d.Origin);
+            brepF20.Rotate(Math.Asin(Math.Sqrt((5 + Math.Sqrt(5)) / 10)), Vector3d.YAxis, Point3d.Origin);
+            return brepF20;
+        }
+
+        public static Brep GenerateBrepK30(double scale)
+        {
+            List<Vector3d> starVectors = GenerateStarVectors(6, false);
+            return GenerateZonohedronBrepFromStarVectors(starVectors, scale);
         }
 
         public static Brep GenerateZonohedronBrepFromStarVectors(List<Vector3d> starVectors, double scale)
@@ -1056,13 +1076,13 @@ namespace Aperiodic
         /// </summary>
         protected override System.Drawing.Bitmap Icon => Resources.aperiodic2tile24px;
 
-        public override GH_Exposure Exposure => GH_Exposure.secondary;
+        public override GH_Exposure Exposure => GH_Exposure.senary;
 
         /// <summary>
         /// Each component must have a unique Guid to identify it. 
         /// It is vital this Guid doesn't change otherwise old ghx files 
         /// that use the old ID will partially fail during loading.
         /// </summary>
-        public override Guid ComponentGuid => new Guid("A1B2C3D4-E5F6-7890-ABCD-EF1234567890");
+        public override Guid ComponentGuid => new Guid("FC63409D-7623-4723-AED5-0E21C26E325B");
     }
 }
