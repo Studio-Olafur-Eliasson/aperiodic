@@ -4174,22 +4174,6 @@ namespace Aperiodic
             return furthestFaceIndex;
         }
 
-        public static Point3d GetBrepFaceCenter(Brep brep, int faceIndex)
-        {
-            BrepFace face = brep.Faces[faceIndex];
-            int[] adjacentEdgeIndices = face.AdjacentEdges();
-
-            Point3d center = Point3d.Origin;
-            foreach (int edgeIdx in adjacentEdgeIndices)
-            {
-                BrepEdge edge = brep.Edges[edgeIdx];
-                center += edge.PointAtMid;
-            }
-
-            center /= adjacentEdgeIndices.Length;
-            return center;
-        }
-
         public static int GetClosestFace(Brep brep, Point3d reference)
         {
             int closestFaceIndex = 0;
@@ -4206,6 +4190,22 @@ namespace Aperiodic
                 }
             }
             return closestFaceIndex;
+        }
+
+        public static Point3d GetBrepFaceCenter(Brep brep, int faceIndex)
+        {
+            BrepFace face = brep.Faces[faceIndex];
+            int[] adjacentEdgeIndices = face.AdjacentEdges();
+
+            Point3d center = Point3d.Origin;
+            foreach (int edgeIdx in adjacentEdgeIndices)
+            {
+                BrepEdge edge = brep.Edges[edgeIdx];
+                center += edge.PointAtMid;
+            }
+
+            center /= adjacentEdgeIndices.Length;
+            return center;
         }
 
         // Note that this only works for placement of B12 and K30, not A6 or F20, since those are oriented based on the face center
