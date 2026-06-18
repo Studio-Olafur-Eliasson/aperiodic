@@ -2,6 +2,7 @@ using Grasshopper;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
+using Rhino;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
@@ -285,18 +286,27 @@ namespace Aperiodic
 
             // Pre-convert brep once if applicable
             Brep brepFilter = null;
+            Mesh meshFilter = null;
             Curve crvFilter = null;
+
             bool isBrep = geometryFilter.HasBrepForm;
-            bool isCurve = geometryFilter is Curve;
+            bool isMesh = !isBrep && geometryFilter is Mesh;
+            bool isCurve = !isBrep && !isMesh && geometryFilter is Curve;
 
             if (isBrep)
             {
                 brepFilter = Brep.TryConvertBrep(geometryFilter);
             }
+            else if (isMesh)
+            {
+                meshFilter = geometryFilter as Mesh;
+            }
             else if (isCurve)
             {
                 crvFilter = geometryFilter as Curve;
             }
+
+            bool canCheckInsideMesh = includeInterior && meshFilter != null && meshFilter.IsClosed;
 
             foreach (var plane in planes)
             {
@@ -330,6 +340,21 @@ namespace Aperiodic
                         result.Add(plane);
                     }
                 }
+                else if (isMesh && meshFilter != null)
+                {
+                    if (canCheckInsideMesh && meshFilter.IsPointInside(tilePoint, RhinoMath.SqrtEpsilon, false))
+                    {
+                        result.Add(plane);
+                        continue;
+                    }
+
+                    Point3d closestPoint = meshFilter.ClosestPoint(tilePoint);
+                    if (!closestPoint.IsValid) continue;
+
+                    double dist = tilePoint.DistanceTo(closestPoint);
+                    if (dist > 0 && dist <= filterDistance)
+                        result.Add(plane);
+                }
                 else if (isCurve && crvFilter != null)
                 {
                     double t;
@@ -346,9 +371,6 @@ namespace Aperiodic
 
             return result;
         }
-
-
-
 
         #region ---Decomposition Plane Generation---
 
