@@ -4582,14 +4582,6 @@ namespace Aperiodic
             int iterations,
             double buffer)
         {
-            if (meshFilter == null)
-                throw new Exception("MeshFilterPlanesOptimized: meshFilter is null");
-
-            if (!meshFilter.IsValid || meshFilter.Faces.Count == 0)
-            {
-                throw new Exception("Mesh filter is invalid or empty");
-            }
-
             if (iterations == 1) buffer = 0;
 
             double filterDivisionFactor = Math.Pow(InverseDeflationScaleFactor, iterations - 1);
