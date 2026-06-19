@@ -9,7 +9,7 @@ using System.Collections.Generic;
 
 namespace Aperiodic
 {
-    public class Aperiodic2TileBrepComponent : GH_Component
+    public class Aperiodic2TileComponent : GH_Component
     {
         // Cache commonly used constants
         private static readonly double GoldenRatio = (1 + Math.Sqrt(5)) / 2;
@@ -34,9 +34,9 @@ namespace Aperiodic
         /// Subcategory the panel. If you use non-existing tab or panel names, 
         /// new tabs/panels will automatically be created.
         /// </summary>
-        public Aperiodic2TileBrepComponent()
-          : base("Aperiodic 2-Tile Brep", "2-Tile Brep",
-            "Generate aperiodic 2-tile transformations (testing version with brep)",
+        public Aperiodic2TileComponent()
+          : base("Aperiodic 2-Tile", "2-Tile",
+            "Generate aperiodic 2-tile transformations (v1.1.0)",
             "Aperiodic", "Aperiodic")
         {
         }
@@ -1084,13 +1084,13 @@ namespace Aperiodic
         /// </summary>
         protected override System.Drawing.Bitmap Icon => Resources.aperiodic2tile24px;
 
-        public override GH_Exposure Exposure => GH_Exposure.senary;
+        public override GH_Exposure Exposure => GH_Exposure.secondary;
 
         /// <summary>
         /// Each component must have a unique Guid to identify it. 
         /// It is vital this Guid doesn't change otherwise old ghx files 
         /// that use the old ID will partially fail during loading.
         /// </summary>
-        public override Guid ComponentGuid => new Guid("FC63409D-7623-4723-AED5-0E21C26E325B");
+        public override Guid ComponentGuid => new Guid("A1B2C3D4-E5F6-7890-ABCD-EF1234567890");
     }
 }
