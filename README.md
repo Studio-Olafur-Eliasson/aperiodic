@@ -6,7 +6,7 @@ A plugin for generating three-dimensional aperiodic space-filling structures.
 
 **Aperiodic** generates space-filling, quasicrystal assemblies using golden rhombohedra and zonohedral tiles as base structures. It implements a recursive substitution system that fills bounded volumes, surfaces, or curves with three-dimensional tiles arranged in aperiodic patterns.
 
-This work builds on research on space-filling polyhedra at Studio Olafur Eliasson. Aperiodic tiling systems, five-fold symmetry and golden rhombohedral assemblies have been investigated by Einar Thorsteinn and other collaborators at the studio for decades. The Advanced Geometry group at Studio Olafur Eliasson continues this research. This tool offers a computational implementation of the geometric systems explored conceptually at the studio for decades.
+This work builds on research on space-filling polyhedra at Studio Olafur Eliasson. Aperiodic tiling systems, five-fold symmetry and golden rhombohedral assemblies have been investigated by Einar Thorsteinn and other collaborators. The Advanced Geometry group at Studio Olafur Eliasson continues this research. This tool offers a computational implementation of the geometric systems explored conceptually at the studio for decades.
 
 The plugin outputs transformation data for each tile instance, enabling efficient substitution with custom geometry and supporting designs that scale to over 100,000 discrete elements. By enabling the generation of non-periodic spatial systems directly within Rhino/Grasshopper, the plugin provides a new framework for exploring quasicrystalline structures in architectural and design workflows.
 
