@@ -36,7 +36,7 @@ namespace Aperiodic
         /// </summary>
         public Aperiodic2TileComponent()
           : base("Aperiodic 2-Tile", "2-Tile",
-            "Generate aperiodic 2-tile transformations (v1.1.0)",
+            "Generate aperiodic 2-tile transformations (v1.2.0)",
             "Aperiodic", "Aperiodic")
         {
         }
@@ -49,7 +49,7 @@ namespace Aperiodic
             pManager.AddGeometryParameter("Geometry Filter", "geometryFilter", "(Optional) Input a geometry filter (Brep or Curve) to define the output shape of the tiling. This acts as a secondary filtering operation after 4-tile component filtering.", GH_ParamAccess.item);
             pManager.AddNumberParameter("Filter Distance", "filterDistance", "Distance from the geometryFilter within which tiles should be included in the output.", GH_ParamAccess.item, 1.0);
             pManager.AddBooleanParameter("Include Interior", "includeInterior", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default true. Note: interior may already be filtered out from the 4-tile component.", GH_ParamAccess.item, true);
-            pManager.AddPlaneParameter("Transformations", "X", "(Required) The output transformations generated from the Aperiodic 4-Tile component. The tree structure contains a separate branch for each of the four tile types: {0} = rhombohedron; {1} = rhombic (Bilinski) dodecahedron; {2} = rhombic icosahedron; {3} = rhombic triacontahedron.", GH_ParamAccess.tree);
+            pManager.AddPlaneParameter("Input Planes", "inPlanes", "(Required) The output planes generated from the Aperiodic 4-Tile component. The tree structure contains a separate branch for each of the four tile types: {0} = rhombohedron; {1} = rhombic (Bilinski) dodecahedron; {2} = rhombic icosahedron; {3} = rhombic triacontahedron.", GH_ParamAccess.tree);
             pManager[0].Optional = true;
             pManager[1].Optional = true;
             pManager[2].Optional = true;
@@ -63,7 +63,7 @@ namespace Aperiodic
         {
             pManager.AddMeshParameter("Base Meshes", "baseMeshes", "Set of base mesh geometry of the two tiles. Apply the input transformations to view tiling result.", GH_ParamAccess.tree);
             pManager.AddBrepParameter("Base Breps", "baseBreps", "Set of base brep geometry of the two tiles. Apply the input transformations to view tiling result.", GH_ParamAccess.tree);
-            pManager.AddPlaneParameter("Transformations", "X", "Apply these output transformations to the baseMeshes, baseBreps, or other substitute geometry. The tree structure contains a separate branch for each of the two tile types: {0} = oblate rhombohedron aka flat tile; {1} = prolate rhombohedron aka long tile", GH_ParamAccess.tree);
+            pManager.AddPlaneParameter("Output Planes", "outPlanes", "Apply these output planes as plane-to-plane transformations to the baseMeshes, baseBreps, or other substitute geometry. The tree structure contains a separate branch for each of the two tile types: {0} = oblate rhombohedron aka flat tile; {1} = prolate rhombohedron aka long tile", GH_ParamAccess.tree);
         }
 
         /// <summary>
@@ -629,7 +629,7 @@ namespace Aperiodic
             foreach (int edgeIdx in adjacentEdgeIndices)
             {
                 BrepEdge edge = brep.Edges[edgeIdx];
-                center += edge.PointAtMid;
+                center += (edge.PointAtStart + edge.PointAtEnd) * 0.5;
             }
 
             center /= adjacentEdgeIndices.Length;

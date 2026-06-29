@@ -35,7 +35,7 @@ namespace Aperiodic
         /// </summary>
         public Aperiodic4TileComponent()
           : base("Aperiodic 4-Tile", "4-Tile",
-            "Generate aperiodic 4-tile transformations (v1.1.0)",
+            "Generate aperiodic 4-tile transformations (v1.2.0)",
             "Aperiodic", "Aperiodic")
         {
         }
@@ -66,7 +66,7 @@ namespace Aperiodic
         {
             pManager.AddMeshParameter("Base Meshes", "baseMeshes", "Set of base mesh geometry of the four zonohedral tiles. Apply the output transformations to view tiling result.", GH_ParamAccess.tree);
             pManager.AddBrepParameter("Base Breps", "baseBreps", "Set of base brep geometry of the four zonohedral tiles. Apply the output transformations to view tiling result.", GH_ParamAccess.tree);
-            pManager.AddPlaneParameter("Transformations", "X", "Result of the recursive process. Apply these output transformations to the baseMeshes, baseBreps, or other substitute geometry. The tree structure contains a separate branch for each of the four tile types: {0} = rhombohedron; {1} = rhombic (Bilinski) dodecahedron; {2} = rhombic icosahedron; {3} = rhombic triacontahedron. The Default output values correspond to 1 iteration of the deflation using seed option 0 (beginning with a rhombic triacontahedron) and no geometryFilter.", GH_ParamAccess.tree);
+            pManager.AddPlaneParameter("Output Planes", "outPlanes", "Result of the recursive process. Apply these planes as plane-to-plane transformations to the baseMeshes, baseBreps, or other substitute geometry. The tree structure contains a separate branch for each of the four tile types: {0} = rhombohedron; {1} = rhombic (Bilinski) dodecahedron; {2} = rhombic icosahedron; {3} = rhombic triacontahedron. The Default output values correspond to 1 iteration of the deflation using seed option 0 (beginning with a rhombic triacontahedron) and no geometryFilter.", GH_ParamAccess.tree);
         }
 
         /// <summary>
@@ -4201,7 +4201,7 @@ namespace Aperiodic
             foreach (int edgeIdx in adjacentEdgeIndices)
             {
                 BrepEdge edge = brep.Edges[edgeIdx];
-                center += edge.PointAtMid;
+                center += (edge.PointAtStart + edge.PointAtEnd) * 0.5;
             }
 
             center /= adjacentEdgeIndices.Length;
