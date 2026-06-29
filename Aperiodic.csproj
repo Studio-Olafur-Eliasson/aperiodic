@@ -33,22 +33,6 @@
   </Target>
   -->
   
-  <ItemGroup>
-    <Compile Remove="Aperiodic2TileComponentMesh.cs" />
-    <Compile Remove="Aperiodic4TileComponentMesh.cs" />
-    <Compile Remove="DeflationRuleA6.cs" />
-    <Compile Remove="DeflationRuleA6Brep.cs" />
-    <Compile Remove="DeflationRuleB12.cs" />
-    <Compile Remove="DeflationRuleB12Brep.cs" />
-    <Compile Remove="DeflationRuleF20.cs" />
-    <Compile Remove="DeflationRuleF20Brep.cs" />
-    <Compile Remove="DeflationRuleK30.cs" />
-    <Compile Remove="DeflationRuleK30Brep.cs" />
-    <Compile Remove="GoldenZonohedra.cs" />
-    <Compile Remove="RecursiveDeflation.cs" />
-    <Compile Remove="SeedOptions.cs" />
-  </ItemGroup>
-  
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
     <PackageReference Include="Grasshopper" Version="7.38.24338.17001" ExcludeAssets="runtime" />
     <PackageReference Include="System.Resources.Extensions" Version="9.0.0" ExcludeAssets="runtime" />
