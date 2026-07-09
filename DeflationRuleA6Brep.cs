@@ -114,15 +114,18 @@ namespace Aperiodic
             List<Plane> plnsF20 = new List<Plane>();
             List<Plane> plnsK30 = new List<Plane>();
 
+            // Get length reference (edge length of original triacontahedron)
+            double scale = refK30.Edges[0].PointAtEnd.DistanceTo(refK30.Edges[0].PointAtStart); //brep code
+
             // Set up base orientation for K30 transformation in step (a6-000)
-            Point3d k30basecenter = GetClosestVertex(refK30, new Point3d(0, -1, 0)).Location;
-            Point3d k30basexaxis = GetClosestVertex(refK30, new Point3d(1, 0, 0)).Location;
+            Point3d k30basecenter = GetClosestVertex(refK30, new Point3d(0, -1*scale, 0)).Location;
+            Point3d k30basexaxis = GetClosestVertex(refK30, new Point3d(1*scale, 0, 0)).Location;
             Point3d k30baseyaxis = new Point3d(-k30basexaxis.X, 0, 0);
             Plane k30base = new Plane(k30basecenter, k30basexaxis, k30baseyaxis);
 
             // Set up base orientation for B12 transformation in step (a6-000)
-            Point3d b12basecenter = GetClosestVertex(refB12, new Point3d(-0.5, 0, 0)).Location;
-            Point3d b12baseyaxis = GetClosestVertex(refB12, new Point3d(-0.5, -0.5, 1)).Location;
+            Point3d b12basecenter = GetClosestVertex(refB12, new Point3d(-0.5*scale, 0, 0)).Location;
+            Point3d b12baseyaxis = GetClosestVertex(refB12, new Point3d(-0.5*scale, -0.5*scale, 1*scale)).Location;
             Point3d b12basexaxis = new Point3d(b12baseyaxis.X, -b12baseyaxis.Y, b12baseyaxis.Z);
             Plane b12base = new Plane(b12basecenter, b12basexaxis, b12baseyaxis);
 
