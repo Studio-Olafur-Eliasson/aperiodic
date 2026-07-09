@@ -1410,7 +1410,7 @@ namespace Aperiodic
             foreach (int edgeIdx in adjacentEdgeIndices)
             {
                 BrepEdge edge = brep.Edges[edgeIdx];
-                center += edge.PointAtMid;
+                center += (edge.PointAtStart + edge.PointAtEnd) * 0.5;
             }
 
             center /= adjacentEdgeIndices.Length;
