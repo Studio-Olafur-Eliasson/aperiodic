@@ -963,11 +963,9 @@ namespace Aperiodic
             for (int i = 0; i < edgeIndices.Length; i++)
             {
                 BrepEdge edge = vertex.Brep.Edges[edgeIndices[i]];
-                Point3d edgept = edge.EdgeCurve.PointAtEnd;
-                if (edgept == vertex.Location)
-                {
-                    edgept = edge.EdgeCurve.PointAtStart;
-                }
+                Point3d start = edge.EdgeCurve.PointAtStart;
+                Point3d end = edge.EdgeCurve.PointAtEnd;
+                Point3d edgept = (start.DistanceTo(vertex.Location) > end.DistanceTo(vertex.Location)) ? start : end;
                 adjacentVertexPoints.Add(edgept);
             }
             return adjacentVertexPoints;
@@ -977,11 +975,9 @@ namespace Aperiodic
         {
             int firstEdgeIndex = vertex.EdgeIndices()[0];
             BrepEdge edge = vertex.Brep.Edges[firstEdgeIndex];
-            Point3d edgept = edge.EdgeCurve.PointAtEnd;
-            if (edgept == vertex.Location)
-            {
-                edgept = edge.EdgeCurve.PointAtStart;
-            }
+            Point3d start = edge.EdgeCurve.PointAtStart;
+            Point3d end = edge.EdgeCurve.PointAtEnd;
+            Point3d edgept = (start.DistanceTo(vertex.Location) > end.DistanceTo(vertex.Location)) ? start : end;
             return edgept;
         }
 
@@ -1007,7 +1003,7 @@ namespace Aperiodic
         {
             BrepVertex closestVertex = brep.Vertices[0];
             Point3d currentVertex = new Point3d();
-            double minDistance = 1000000000;
+            double minDistance = double.MaxValue;
             foreach (BrepVertex v in brep.Vertices)
             {
                 currentVertex = v.Location;
@@ -1083,10 +1079,7 @@ namespace Aperiodic
             }
 
             // Translate the brep so its base sits on WorldXY (Z = 0)
-            if (Math.Abs(minZ) > 0.0001) // Only translate if not already at Z = 0
-            {
-                brep.Translate(new Vector3d(0, 0, -minZ));
-            }
+            brep.Translate(new Vector3d(0, 0, -minZ));
         }
 
         public static double GetBrepHeight(Brep brep)
