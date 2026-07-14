@@ -50,10 +50,12 @@ namespace Aperiodic
             pManager.AddNumberParameter("Filter Distance", "filterDistance", "Distance from the geometryFilter within which tiles should be included in the output.", GH_ParamAccess.item, 1.0);
             pManager.AddBooleanParameter("Include Interior", "includeInterior", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default true. Note: interior may already be filtered out from the 4-tile component.", GH_ParamAccess.item, true);
             pManager.AddPlaneParameter("Input Planes", "inPlanes", "(Required) The output planes generated from the Aperiodic 4-Tile component. The tree structure contains a separate branch for each of the four tile types: {0} = rhombohedron; {1} = rhombic (Bilinski) dodecahedron; {2} = rhombic icosahedron; {3} = rhombic triacontahedron.", GH_ParamAccess.tree);
+            pManager.AddNumberParameter("Scale", "scale", "Scale factor (edge length) of the tiles. Default: 1.0", GH_ParamAccess.item, 1.0);
             pManager[0].Optional = true;
             pManager[1].Optional = true;
             pManager[2].Optional = true;
             pManager[3].Optional = true;
+            pManager[4].Optional = true;
         }
 
         /// <summary>
@@ -85,8 +87,7 @@ namespace Aperiodic
             DA.GetData(1, ref filterDistance);
             DA.GetData(2, ref includeInterior);
             DA.GetDataTree(3, out transformations);
-
-            // DA.GetData(4, ref scale); // future implementation
+            DA.GetData(4, ref scale);
 
             if (transformations.IsEmpty)
             {
@@ -100,7 +101,6 @@ namespace Aperiodic
                 _cachedPlanesB12 = GetB12DecompositionPlanes(scale);
                 _cachedPlanesF20 = GetF20DecompositionPlanes(scale);
                 _cachedPlanesK30 = GetK30DecompositionPlanes(scale);
-                _lastScale = scale;
             }
 
             // Collect all transformed planes first, then filter in batch
@@ -196,7 +196,7 @@ namespace Aperiodic
             // Base mesh and brep generation for 2-tile system (use cached versions if available, otherwise generate and cache)
 
             // Generate Base Meshes
-            if (_cachedBaseMeshes == null)
+            if (_cachedBaseMeshes == null || scale != _lastScale)
             {
                 // Generate meshes for each tile type
                 DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
@@ -209,7 +209,7 @@ namespace Aperiodic
             }
 
             // Generate Base Breps
-            if (_cachedBaseBreps == null)
+            if (_cachedBaseBreps == null || scale != _lastScale)
             {
                 // Generate breps for each tile type
                 DataTree<Brep> baseBreps = new DataTree<Brep>();
@@ -220,6 +220,8 @@ namespace Aperiodic
 
                 _cachedBaseBreps = baseBreps;
             }
+
+            _lastScale = scale;
 
             DA.SetDataTree(0, _cachedBaseMeshes);
             DA.SetDataTree(1, _cachedBaseBreps);
