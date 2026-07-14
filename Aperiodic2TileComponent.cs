@@ -732,12 +732,14 @@ namespace Aperiodic
 
         public static Mesh GenerateZonohedronMeshFromStarVectors(List<Vector3d> starVectors, double scale)
         {
+            double buildScale = (scale < 1.0) ? 1.0 : scale;
+
             // Scale star vectors
             List<Vector3d> scaledStarVectors = new List<Vector3d>();
             foreach (Vector3d vec in starVectors)
             {
                 vec.Unitize();
-                scaledStarVectors.Add(Vector3d.Multiply(vec, scale * 0.5));
+                scaledStarVectors.Add(Vector3d.Multiply(vec, buildScale * 0.5));
             }
 
             // Generate normal vectors for faces
@@ -762,6 +764,10 @@ namespace Aperiodic
 
             foreach (Vector3d n in normalVectors)
             {
+                // Set up unitless comparison so scaling won't affect the p-representation
+                Vector3d nUnit = n;
+                nUnit.Unitize();
+
                 // Set up face p-representation and its opposite
                 List<int> face_p_representation = new List<int>();
                 List<int> face_p_representationOpposite = new List<int>();
@@ -769,10 +775,14 @@ namespace Aperiodic
                 // Loop through star vectors
                 foreach (Vector3d v in scaledStarVectors)
                 {
+                    Vector3d vUnit = v;
+                    vUnit.Unitize();
+
                     // Get dot product
-                    double d = Vector3d.Multiply(n, v);
+                    double d = Vector3d.Multiply(nUnit, vUnit);
+
                     // Create p-representation entries
-                    if (Math.Abs(d) < 0.0001)
+                    if (Math.Abs(d) < 1e-6)
                     {
                         face_p_representation.Add(0);
                         face_p_representationOpposite.Add(0);
@@ -796,6 +806,14 @@ namespace Aperiodic
 
             // Build mesh from face representations
             Mesh mesh = BuildMeshFromFaceRepresentations(scaledStarVectors, faces_p);
+
+            // Scale finished Mesh from buildScale to requested scale
+            if (buildScale != scale)
+            {
+                Transform xform = Transform.Scale(Point3d.Origin, scale / buildScale);
+                mesh.Transform(xform);
+            }
+
             return mesh;
         }
 
@@ -950,12 +968,14 @@ namespace Aperiodic
 
         public static Brep GenerateZonohedronBrepFromStarVectors(List<Vector3d> starVectors, double scale)
         {
+            double buildScale = (scale < 1.0) ? 1.0 : scale;
+
             // Scale star vectors
             List<Vector3d> scaledStarVectors = new List<Vector3d>();
             foreach (Vector3d vec in starVectors)
             {
                 vec.Unitize();
-                scaledStarVectors.Add(Vector3d.Multiply(vec, scale * 0.5));
+                scaledStarVectors.Add(Vector3d.Multiply(vec, buildScale * 0.5));
             }
 
             // Generate normal vectors for faces
@@ -983,13 +1003,20 @@ namespace Aperiodic
                 // Set up face p-representation and its opposite
                 List<int> face_p_representation = new List<int>();
 
+                // Set up unitless comparison so scaling won't affect the p-representation
+                Vector3d nUnit = n;
+                nUnit.Unitize();
+
                 // Loop through star vectors
                 foreach (Vector3d v in scaledStarVectors)
                 {
+                    Vector3d vUnit = v;
+                    vUnit.Unitize();
+
                     // Get dot product
-                    double d = Vector3d.Multiply(n, v);
+                    double d = Vector3d.Multiply(nUnit, vUnit);
                     // Create p-representation entries
-                    if (Math.Abs(d) < 0.0001)
+                    if (Math.Abs(d) < 1e-6)
                     {
                         face_p_representation.Add(0);
                     }
@@ -1003,7 +1030,7 @@ namespace Aperiodic
                     }
                 }
 
-                // Create vertex p-representations
+                // Create vertex p-represetnations
                 List<int> v1_p_representation = new List<int>();
                 List<int> v2_p_representation = new List<int>();
                 List<int> v3_p_representation = new List<int>();
@@ -1058,7 +1085,20 @@ namespace Aperiodic
             }
 
             // Assemble face surfaces into a Brep
-            Brep brep = Brep.JoinBreps(faces.ConvertAll(f => Brep.CreateFromSurface(f)), 0.01)[0];
+            Brep[] joined = Brep.JoinBreps(faces.ConvertAll(f => Brep.CreateFromSurface(f)), 0.001 * buildScale);
+
+            if (joined == null || joined.Length == 0)
+                return null;
+
+            Brep brep = joined[0];
+
+            // Scale finished Brep from buildScale to requested scale
+            if (buildScale != scale)
+            {
+                Transform xform = Transform.Scale(Point3d.Origin, scale / buildScale);
+                brep.Transform(xform);
+            }
+
             return brep;
         }
 
