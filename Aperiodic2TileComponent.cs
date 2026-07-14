@@ -588,7 +588,7 @@ namespace Aperiodic
         {
             BrepVertex closestVertex = brep.Vertices[0];
             Point3d currentVertex = new Point3d();
-            double minDistance = 1000000000;
+            double minDistance = double.MaxValue;
             foreach (BrepVertex v in brep.Vertices)
             {
                 currentVertex = v.Location;
@@ -606,7 +606,7 @@ namespace Aperiodic
         {
             int closestFaceIndex = 0;
             Point3d currentFaceCenter = new Point3d();
-            double minDistance = 1000000;
+            double minDistance = double.MaxValue;
             for (int i = 0; i < brep.Faces.Count; i++)
             {
                 currentFaceCenter = GetBrepFaceCenter(brep, i);
