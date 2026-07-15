@@ -46,9 +46,9 @@ namespace Aperiodic
         /// </summary>
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
-            pManager.AddGeometryParameter("Geometry Filter", "geometryFilter", "(Optional) Input a geometry filter (Brep or Curve) to define the output shape of the tiling. This acts as a secondary filtering operation after 4-tile component filtering.", GH_ParamAccess.item);
+            pManager.AddGeometryParameter("Geometry Filter", "geometryFilter", "(Optional) Input a geometry filter (Mesh, Brep, Surface or Curve) to define the output shape of the tiling. This acts as a secondary filtering operation after 4-tile component filtering.", GH_ParamAccess.item);
             pManager.AddNumberParameter("Filter Distance", "filterDistance", "Distance from the geometryFilter within which tiles should be included in the output.", GH_ParamAccess.item, 1.0);
-            pManager.AddBooleanParameter("Include Interior", "includeInterior", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep). Default true. Note: interior may already be filtered out from the 4-tile component.", GH_ParamAccess.item, true);
+            pManager.AddBooleanParameter("Include Interior", "includeInterior", "Boolean for whether to include tiles on the interior of the filter geometry (if it is a closed Brep or Mesh). Default true. Note: interior may already be filtered out from the 4-tile component.", GH_ParamAccess.item, true);
             pManager.AddPlaneParameter("Input Planes", "inPlanes", "(Required) The output planes generated from the Aperiodic 4-Tile component. The tree structure contains a separate branch for each of the four tile types: {0} = rhombohedron; {1} = rhombic (Bilinski) dodecahedron; {2} = rhombic icosahedron; {3} = rhombic triacontahedron.", GH_ParamAccess.tree);
             pManager.AddNumberParameter("Scale", "scale", "Scale factor (edge length) of the tiles. Default: 1.0", GH_ParamAccess.item, 1.0);
             pManager[0].Optional = true;
