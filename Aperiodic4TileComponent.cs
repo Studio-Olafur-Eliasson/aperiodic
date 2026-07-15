@@ -26,6 +26,9 @@ namespace Aperiodic
         // Store geometry to preview
         private List<Curve> _previewCurves = new List<Curve>();
 
+        // Cache scale - if scale changes, we need to recalculate the planes
+        private double _lastScale = double.NaN;
+
         /// <summary>
         /// Each implementation of GH_Component must provide a public 
         /// constructor without any arguments.
@@ -51,12 +54,14 @@ namespace Aperiodic
             pManager.AddPlaneParameter("Center Plane", "centerPln", "Plane input for the center of the recursive tile-generation process. Default: World XY.", GH_ParamAccess.item, Plane.WorldXY);
             pManager.AddIntegerParameter("Iterations", "iterations", "Number of iterations of the recursive process. If iterations > 2, must use geometryFilter to avoid crashing. Set iterations = 0 to view the starting \"seed\" tiles of the recusive process. Default: 1", GH_ParamAccess.item, 1);
             pManager.AddIntegerParameter("Seed Option", "seedOption", "Enter an integer option, 0, 1, or 2. According to Socolar and Steinhardt, who published the discovery of this 4-tile configuration in 1986, there exist exactly three packings with a single center of icosahedral point symmetry in 3D Euclidean space. These three options are each generated with one of the following \"seed\" tile configurations: 0 = a single rhombic triacontahedron tile (Default); 1 = a star of twenty rhombohedra, which, after deflation/inflation, are surrounded by rhombic triacontahedra; 2 = a star of twenty rhombohedra, with flipped orientations with respect to the previous option, so that they are surrounded by rhombic icosahedra on the next layer after deflation/inflation.", GH_ParamAccess.item, 0);
+            pManager.AddNumberParameter("Scale", "scale", "Scale factor (edge length) of the tiles. Default: 1.0", GH_ParamAccess.item, 1.0);
             pManager[0].Optional = true;
             pManager[1].Optional = true;
             pManager[2].Optional = true;
             pManager[3].Optional = true;
             pManager[4].Optional = true;
             pManager[5].Optional = true;
+            pManager[6].Optional = true;
         }
 
         /// <summary>
@@ -92,6 +97,14 @@ namespace Aperiodic
             DA.GetData(3, ref centerpln);
             DA.GetData(4, ref iterations);
             DA.GetData(5, ref seed);
+            DA.GetData(6, ref scale);
+
+            if (scale <= RhinoMath.ZeroTolerance)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error,
+                    "Cannot scale with factor zero.");
+                return;
+            }
 
             List<GeometryBase> gfa = null;
 
@@ -120,7 +133,7 @@ namespace Aperiodic
                 gfa = GetGeoFilterArray(geometryFilter, iterations, centerpln);
             }
 
-            if (_cachedBaseMeshes == null)
+            if (_cachedBaseMeshes == null || scale != _lastScale)
             {
                 // Generate Base Meshes
                 DataTree<Mesh> baseMeshes = new DataTree<Mesh>();
@@ -141,7 +154,7 @@ namespace Aperiodic
             Brep refF20;
             Brep refK30;
 
-            if (_cachedBaseBreps == null)
+            if (_cachedBaseBreps == null || scale != _lastScale)
             {
                 // Generate breps for each tile type
                 refA6 = GenerateBrepA6(scale);
@@ -168,6 +181,7 @@ namespace Aperiodic
             DataTree<Plane> baseplns = GenerateBasePlnsFromSeed(seed, centerpln, a6HeightRef);
 
             // Generate wireframe preview (only need to check branches 0 and 3 since seed options only include those two types of tiles)
+            // Note that the reference breps are already scaled
             _previewCurves.Clear();
             Transform previewScale = Transform.Scale(centerpln.Origin, Math.Pow(DeflationScaleFactor, iterations));
             foreach (var pln in baseplns.Branch(0))
@@ -191,7 +205,7 @@ namespace Aperiodic
             TranslateToWorldXY(refF20);
             TranslateToWorldXY(refK30);
 
-            if (_cachedDeflationPlanes == null)
+            if (_cachedDeflationPlanes == null || scale != _lastScale)
             {
                 // Generate deflation rules
                 DataTree<Plane> generatedA6plns = GenerateDeflationPlanesA6(refA6, refB12, refF20, refK30);
@@ -212,6 +226,8 @@ namespace Aperiodic
 
             // Perform recursive inflation/deflation process to get output planes for transformations
             DataTree<Plane> outputplns = RecurseInflateGeometry(gfa, filterDistance, includeInterior, centerpln, baseplns, iterations, scale, _cachedDeflationPlanes);
+
+            _lastScale = scale;
 
             // Set output parameter data
             DA.SetDataTree(0, _cachedBaseMeshes);
