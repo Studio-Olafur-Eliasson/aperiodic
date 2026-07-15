@@ -24,7 +24,7 @@ namespace Aperiodic
         private DataTree<Brep> _cachedBaseBreps;
         private DataTree<Mesh> _cachedBaseMeshes;
 
-        // Cache scale (for future implementation of dynamic scaling) - if scale changes, we need to recalculate the planes
+        // Cache scale - if scale changes, we need to recalculate the planes
         private double _lastScale = double.NaN;
 
         /// <summary>
@@ -80,18 +80,25 @@ namespace Aperiodic
             double filterDistance = 1.0;
             bool includeInterior = false;
             double scale = 1.0;
-            GH_Structure<GH_Plane> transformations = new GH_Structure<GH_Plane>();
+            GH_Structure<GH_Plane> inPlanes = new GH_Structure<GH_Plane>();
 
             // Retrieve data from input parameters
             DA.GetData(0, ref geometryFilter);
             DA.GetData(1, ref filterDistance);
             DA.GetData(2, ref includeInterior);
-            DA.GetDataTree(3, out transformations);
+            DA.GetDataTree(3, out inPlanes);
             DA.GetData(4, ref scale);
 
-            if (transformations.IsEmpty)
+            if (inPlanes.IsEmpty || inPlanes.DataCount == 0)
             {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, "Missing transformation (X) input. Connect a valid transformation tree, generated from the Aperiodic 4-Tile Component.");
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, "Missing input planes (inPlanes). Connect a valid tree of planes generated from the Aperiodic 4-Tile Component (outPlanes).");
+            }
+
+            if (scale <= RhinoMath.ZeroTolerance)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error,
+                    "Cannot scale with factor zero.");
+                return;
             }
 
             // Get decomposition planes
@@ -108,7 +115,7 @@ namespace Aperiodic
             var allA6Planes = new List<Plane>();
 
             // Work with 2D Array of planes
-            Plane[][] inputTransformationPlanes = ExtractPlaneArrays(transformations);
+            Plane[][] inputTransformationPlanes = ExtractPlaneArrays(inPlanes);
 
             // Decompose A6 tiles
             foreach (Plane pl in inputTransformationPlanes[0])
